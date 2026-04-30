@@ -14,6 +14,14 @@ function teamDetailView(currentClub, currentStaff, teamId, onNavigate) {
     selectedStaffId: '',
     selectedRole: 'assistant_coach',
 
+    // Bench duty state
+    dutyPool: [],
+    dutyAssignments: [],
+    dutyLoading: false,
+    dutyError: '',
+    showExclusionForm: null,           // family_id when adding an exclusion
+    exclusionForm: emptyExclusionForm(),
+
     async init() {
       try {
         await this.loadAll();
@@ -37,6 +45,140 @@ function teamDetailView(currentClub, currentStaff, teamId, onNavigate) {
       };
       this.teamStaff = await window.GTWData.listTeamStaff(teamId);
       this.clubStaff = await window.GTWData.listStaff(currentClub.id);
+      await this.loadDuty();
+    },
+
+    async loadDuty() {
+      this.dutyError = '';
+      try {
+        const [pool, assignments] = await Promise.all([
+          window.GTWData.listDutyPool(teamId),
+          window.GTWData.listDutyAssignments(teamId)
+        ]);
+        this.dutyPool = pool;
+        this.dutyAssignments = assignments;
+      } catch (err) {
+        this.dutyError = err.message;
+      }
+    },
+
+    // Map family_id → number of duty assignments (across all this team's games)
+    dutyCounts() {
+      const counts = {};
+      for (const f of this.dutyPool) counts[f.id] = 0;
+      for (const a of this.dutyAssignments) {
+        if (counts[a.family_id] !== undefined) counts[a.family_id]++;
+      }
+      return counts;
+    },
+
+    formatDutyDate(d) {
+      if (!d) return '';
+      const dt = new Date(d + 'T00:00:00');
+      return dt.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
+    },
+
+    exclusionsForFamily(familyId) {
+      const f = this.dutyPool.find(x => x.id === familyId);
+      return f?.duty_pool_exclusions || [];
+    },
+
+    exclusionLabel(e) {
+      const type = { one_off: 'One-off', partial: 'Date range', full_season: 'Full season' }[e.exclusion_type] || e.exclusion_type;
+      let dates = '';
+      if (e.exclusion_type === 'one_off' && e.date_from) {
+        dates = ` on ${this.formatDutyDate(e.date_from)}`;
+      } else if (e.exclusion_type === 'partial' && (e.date_from || e.date_to)) {
+        dates = ` ${e.date_from ? 'from ' + this.formatDutyDate(e.date_from) : ''} ${e.date_to ? 'to ' + this.formatDutyDate(e.date_to) : ''}`.trim();
+      } else if (e.exclusion_type === 'full_season') {
+        dates = ' (whole season)';
+      }
+      return type + dates + (e.reason ? ` — ${e.reason}` : '');
+    },
+
+    startAddExclusion(familyId) {
+      this.exclusionForm = emptyExclusionForm();
+      this.showExclusionForm = familyId;
+    },
+
+    cancelExclusionForm() {
+      this.showExclusionForm = null;
+      this.exclusionForm = emptyExclusionForm();
+    },
+
+    async saveExclusion() {
+      this.dutyError = '';
+      try {
+        const payload = {
+          exclusion_type: this.exclusionForm.exclusion_type,
+          date_from: this.exclusionForm.date_from || null,
+          date_to: this.exclusionForm.date_to || null,
+          reason: this.exclusionForm.reason?.trim() || null
+        };
+        // For one-off, copy date_from to date_to
+        if (payload.exclusion_type === 'one_off') payload.date_to = payload.date_from;
+        await window.GTWData.createDutyExclusion(this.showExclusionForm, payload);
+        this.cancelExclusionForm();
+        await this.loadDuty();
+      } catch (err) {
+        this.dutyError = err.message;
+      }
+    },
+
+    async removeExclusion(exclusionId) {
+      if (!confirm('Remove this exclusion?')) return;
+      try {
+        await window.GTWData.removeDutyExclusion(exclusionId);
+        await this.loadDuty();
+      } catch (err) {
+        this.dutyError = err.message;
+      }
+    },
+
+    async runGenerateRoster() {
+      this.dutyError = '';
+      const hasUnlocked = this.dutyAssignments.some(a => !a.is_locked);
+      if (hasUnlocked && !confirm('Regenerate the duty roster? Unlocked assignments will be reshuffled. Locked ones stay put.')) return;
+      this.dutyLoading = true;
+      try {
+        const result = await window.GTWData.generateDutyRoster(teamId);
+        await this.loadDuty();
+        let msg = `Roster generated. ${result.assigned_now} new, ${result.reassigned} reshuffled.`;
+        if (result.skipped_no_eligible > 0) msg += ` ${result.skipped_no_eligible} games had no eligible family (all excluded).`;
+        alert(msg);
+      } catch (err) {
+        this.dutyError = err.message;
+      } finally {
+        this.dutyLoading = false;
+      }
+    },
+
+    async toggleLock(a) {
+      try {
+        await window.GTWData.setDutyAssignmentLock(a.id, !a.is_locked);
+        await this.loadDuty();
+      } catch (err) {
+        this.dutyError = err.message;
+      }
+    },
+
+    async manualReassign(gameId, familyId) {
+      try {
+        await window.GTWData.upsertDutyAssignment(gameId, familyId, true);   // manual override is auto-locked
+        await this.loadDuty();
+      } catch (err) {
+        this.dutyError = err.message;
+      }
+    },
+
+    async clearAssignment(gameId) {
+      if (!confirm('Clear this duty assignment?')) return;
+      try {
+        await window.GTWData.removeDutyAssignment(gameId);
+        await this.loadDuty();
+      } catch (err) {
+        this.dutyError = err.message;
+      }
     },
 
     canEdit() {
@@ -133,6 +275,10 @@ function teamDetailView(currentClub, currentStaff, teamId, onNavigate) {
       return { M: 'Boys', F: 'Girls', X: 'Mixed', NA: 'Open' }[g] || '—';
     }
   };
+}
+
+function emptyExclusionForm() {
+  return { exclusion_type: 'one_off', date_from: '', date_to: '', reason: '' };
 }
 
 window.teamDetailView = teamDetailView;

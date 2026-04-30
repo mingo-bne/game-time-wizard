@@ -196,6 +196,187 @@ window.GTWData = (function () {
     return check(await sb().from('team_staff').delete().eq('id', teamStaffId));
   }
 
+  // ---------- BENCH DUTY ----------
+
+  // Duty pool = families with at least one ACTIVE player on this team.
+  // Returned with their exclusions inline.
+  async function listDutyPool(teamId) {
+    // 1. Get distinct family_ids via active team_memberships → players
+    const { data: memberships, error: mErr } = await sb()
+      .from('team_memberships')
+      .select('player:player_id ( family_id )')
+      .eq('team_id', teamId)
+      .eq('is_active', true);
+    if (mErr) throw new Error(mErr.message);
+    const familyIds = [...new Set((memberships || [])
+      .map(m => m.player?.family_id)
+      .filter(Boolean))];
+    if (familyIds.length === 0) return [];
+
+    // 2. Fetch families + exclusions
+    return check(await sb()
+      .from('families')
+      .select('*, family_contacts(*), duty_pool_exclusions(*)')
+      .in('id', familyIds)
+      .order('family_name'));
+  }
+
+  async function createDutyExclusion(familyId, fields) {
+    return check(await sb().from('duty_pool_exclusions').insert({
+      family_id: familyId,
+      exclusion_type: fields.exclusion_type,
+      date_from: fields.date_from || null,
+      date_to: fields.date_to || null,
+      reason: fields.reason || null
+    }).select().single());
+  }
+
+  async function removeDutyExclusion(exclusionId) {
+    return check(await sb()
+      .from('duty_pool_exclusions')
+      .delete()
+      .eq('id', exclusionId));
+  }
+
+  // All duty assignments for games belonging to this team
+  async function listDutyAssignments(teamId) {
+    return check(await sb()
+      .from('duty_assignments')
+      .select('*, game:game_id!inner ( id, team_id, game_date, game_time, opposition:opposition_id ( name ) ), family:family_id ( id, family_name )')
+      .eq('game.team_id', teamId)
+      .order('game(game_date)', { ascending: true }));
+  }
+
+  // Manual override — assign a specific family to a specific game
+  async function upsertDutyAssignment(gameId, familyId, isLocked) {
+    return check(await sb().from('duty_assignments').upsert({
+      game_id: gameId,
+      family_id: familyId,
+      generated_at: new Date().toISOString(),
+      is_locked: isLocked ?? false
+    }, { onConflict: 'game_id' }).select().single());
+  }
+
+  async function setDutyAssignmentLock(assignmentId, isLocked) {
+    return check(await sb()
+      .from('duty_assignments')
+      .update({ is_locked: !!isLocked })
+      .eq('id', assignmentId)
+      .select().single());
+  }
+
+  async function removeDutyAssignment(gameId) {
+    return check(await sb()
+      .from('duty_assignments')
+      .delete()
+      .eq('game_id', gameId));
+  }
+
+  // The fairness algorithm — generates duty assignments for all upcoming
+  // SCHEDULED games of a team. Respects locked existing assignments and
+  // family exclusions. Replaces unlocked assignments.
+  async function generateDutyRoster(teamId) {
+    const today = new Date().toISOString().slice(0, 10);
+    const [pool, allAssignments, gamesResult] = await Promise.all([
+      listDutyPool(teamId),
+      listDutyAssignments(teamId),
+      sb().from('games').select('id, game_date')
+        .eq('team_id', teamId)
+        .eq('status', 'scheduled')
+        .gte('game_date', today)
+        .order('game_date', { ascending: true })
+    ]);
+    if (gamesResult.error) throw new Error(gamesResult.error.message);
+    const games = gamesResult.data || [];
+
+    if (pool.length === 0) {
+      throw new Error('Duty pool is empty. Add players (with family links) to this team first.');
+    }
+
+    // Fairness count = ALL assignments per family (past + future).
+    // This way, if a family did three duties last month, they get fewer next.
+    const familyCounts = {};
+    for (const f of pool) familyCounts[f.id] = 0;
+    for (const a of allAssignments) {
+      if (familyCounts[a.family_id] === undefined) continue; // family no longer in pool
+      familyCounts[a.family_id]++;
+    }
+
+    // Index existing assignments by game_id
+    const existingByGame = {};
+    for (const a of allAssignments) existingByGame[a.game_id] = a;
+
+    // Helper: is family blocked on this date?
+    const isBlocked = (family, gameDate) => {
+      const excl = family.duty_pool_exclusions || [];
+      return excl.some(e => {
+        if (e.exclusion_type === 'full_season' && !e.date_from && !e.date_to) return true;
+        const from = e.date_from ? new Date(e.date_from + 'T00:00:00') : new Date(0);
+        const to   = e.date_to   ? new Date(e.date_to   + 'T23:59:59') : new Date(8640000000000000);
+        const gd   = new Date(gameDate + 'T12:00:00');
+        return gd >= from && gd <= to;
+      });
+    };
+
+    // For each upcoming game (ordered by date), pick the lowest-count eligible family
+    const toUpdate = [];   // { id, family_id }
+    const toInsert = [];   // { game_id, family_id, generated_at }
+    let skippedNoEligible = 0;
+
+    for (const game of games) {
+      const existing = existingByGame[game.id];
+      if (existing && existing.is_locked) continue;   // never touch locked
+
+      const eligible = pool.filter(f => !isBlocked(f, game.game_date));
+      if (eligible.length === 0) {
+        skippedNoEligible++;
+        continue;
+      }
+
+      eligible.sort((a, b) => {
+        const diff = (familyCounts[a.id] || 0) - (familyCounts[b.id] || 0);
+        return diff !== 0 ? diff : a.family_name.localeCompare(b.family_name);
+      });
+      const chosen = eligible[0];
+
+      // If existing unlocked assignment already matches chosen, no change needed
+      if (existing && existing.family_id === chosen.id) continue;
+
+      familyCounts[chosen.id]++;
+
+      if (existing) {
+        toUpdate.push({ id: existing.id, family_id: chosen.id });
+      } else {
+        toInsert.push({
+          game_id: game.id,
+          family_id: chosen.id,
+          generated_at: new Date().toISOString(),
+          is_locked: false
+        });
+      }
+    }
+
+    // Apply changes
+    for (const u of toUpdate) {
+      await sb().from('duty_assignments').update({
+        family_id: u.family_id,
+        generated_at: new Date().toISOString()
+      }).eq('id', u.id);
+    }
+    if (toInsert.length > 0) {
+      const { error } = await sb().from('duty_assignments').insert(toInsert);
+      if (error) throw new Error(error.message);
+    }
+
+    return {
+      games_total: games.length,
+      assigned_now: toInsert.length,
+      reassigned: toUpdate.length,
+      skipped_no_eligible: skippedNoEligible,
+      family_counts_after: familyCounts
+    };
+  }
+
   // ---------- DASHBOARD SUMMARY ----------
 
   async function getDashboardSummary(clubId) {
@@ -561,6 +742,9 @@ window.GTWData = (function () {
     listTeamStaff, assignStaffToTeam, updateTeamStaffRole, removeTeamStaff,
     listGames, listUpcomingGames, getGame, createGame, updateGame, deleteGame, getGameWeekStatus,
     getDashboardSummary,
+    listDutyPool, createDutyExclusion, removeDutyExclusion,
+    listDutyAssignments, upsertDutyAssignment, setDutyAssignmentLock, removeDutyAssignment,
+    generateDutyRoster,
     listMyEditableTeams,
     listFamilies, createFamily, updateFamily, deleteFamily,
     addFamilyContact, updateFamilyContact, removeFamilyContact,

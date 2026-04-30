@@ -559,6 +559,132 @@
                         </div>
                       </template>
                     </div>
+
+                    <!-- Bench duty -->
+                    <div class="bg-white border border-slate-200 rounded-xl p-6">
+                      <div class="flex items-center justify-between mb-4">
+                        <div>
+                          <h2 class="text-lg font-semibold">Bench duty</h2>
+                          <p class="text-xs text-slate-500">Equal-turn allocation across the season. Locked assignments stay; unlocked ones reshuffle on regenerate.</p>
+                        </div>
+                        <button x-show="canEdit() && dutyPool.length > 0" @click="runGenerateRoster()" :disabled="dutyLoading"
+                          class="bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm rounded-lg px-3 py-1.5 font-medium whitespace-nowrap">
+                          <span x-text="dutyLoading ? 'Generating…' : 'Generate roster'"></span>
+                        </button>
+                      </div>
+
+                      <p x-show="dutyError" x-text="dutyError" class="text-sm text-red-600 mb-3"></p>
+
+                      <!-- Empty state -->
+                      <div x-show="dutyPool.length === 0" class="text-sm text-slate-500 italic">
+                        No families in the duty pool. Add players (with family links via Roster) to this team first.
+                      </div>
+
+                      <template x-if="dutyPool.length > 0">
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+                          <!-- Duty pool families -->
+                          <div>
+                            <h3 class="text-sm font-semibold text-slate-700 mb-2">Duty pool (<span x-text="dutyPool.length"></span> families)</h3>
+                            <div class="space-y-2">
+                              <template x-for="f in dutyPool" :key="f.id">
+                                <div class="border border-slate-200 rounded-lg p-3">
+                                  <div class="flex items-center justify-between mb-1">
+                                    <div class="font-medium text-sm" x-text="f.family_name"></div>
+                                    <div class="text-xs text-slate-500">
+                                      Duties: <span class="font-mono" x-text="dutyCounts()[f.id] || 0"></span>
+                                    </div>
+                                  </div>
+
+                                  <!-- Existing exclusions -->
+                                  <template x-if="exclusionsForFamily(f.id).length > 0">
+                                    <div class="mt-2 space-y-1">
+                                      <template x-for="e in exclusionsForFamily(f.id)" :key="e.id">
+                                        <div class="flex items-center justify-between text-xs bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                                          <span x-text="exclusionLabel(e)"></span>
+                                          <button x-show="canEdit()" @click="removeExclusion(e.id)" class="text-red-600 hover:underline ml-2">×</button>
+                                        </div>
+                                      </template>
+                                    </div>
+                                  </template>
+
+                                  <!-- Add exclusion -->
+                                  <template x-if="showExclusionForm === f.id">
+                                    <div class="mt-2 p-2 bg-slate-50 rounded space-y-2">
+                                      <div class="grid grid-cols-1 gap-2">
+                                        <select x-model="exclusionForm.exclusion_type"
+                                          class="border border-slate-300 rounded px-2 py-1 text-xs">
+                                          <option value="one_off">One-off date</option>
+                                          <option value="partial">Date range</option>
+                                          <option value="full_season">Full season</option>
+                                        </select>
+                                        <template x-if="exclusionForm.exclusion_type !== 'full_season'">
+                                          <div class="grid grid-cols-2 gap-2">
+                                            <input type="date" x-model="exclusionForm.date_from"
+                                              :placeholder="exclusionForm.exclusion_type === 'one_off' ? 'Date' : 'From'"
+                                              class="border border-slate-300 rounded px-2 py-1 text-xs" />
+                                            <template x-if="exclusionForm.exclusion_type === 'partial'">
+                                              <input type="date" x-model="exclusionForm.date_to" placeholder="To"
+                                                class="border border-slate-300 rounded px-2 py-1 text-xs" />
+                                            </template>
+                                          </div>
+                                        </template>
+                                        <input type="text" x-model="exclusionForm.reason" placeholder="Reason (optional, e.g. travelling)"
+                                          class="border border-slate-300 rounded px-2 py-1 text-xs" />
+                                      </div>
+                                      <div class="flex gap-1">
+                                        <button @click="saveExclusion()"
+                                          class="bg-brand-600 text-white text-xs rounded px-2 py-1">Add</button>
+                                        <button @click="cancelExclusionForm()"
+                                          class="text-xs text-slate-600 px-2 py-1">Cancel</button>
+                                      </div>
+                                    </div>
+                                  </template>
+                                  <template x-if="showExclusionForm !== f.id">
+                                    <button x-show="canEdit()" @click="startAddExclusion(f.id)"
+                                      class="mt-1 text-xs text-brand-600 hover:underline">+ Add exclusion</button>
+                                  </template>
+                                </div>
+                              </template>
+                            </div>
+                          </div>
+
+                          <!-- Duty roster -->
+                          <div>
+                            <h3 class="text-sm font-semibold text-slate-700 mb-2">Duty roster (<span x-text="dutyAssignments.length"></span> assigned)</h3>
+                            <div x-show="dutyAssignments.length === 0" class="text-xs text-slate-500 italic">
+                              No assignments yet. Click "Generate roster".
+                            </div>
+                            <div class="space-y-1.5">
+                              <template x-for="a in dutyAssignments" :key="a.id">
+                                <div class="flex items-center justify-between gap-2 border border-slate-200 rounded px-3 py-2 text-sm">
+                                  <div class="min-w-0 flex-1">
+                                    <div class="font-medium truncate">
+                                      <span x-text="formatDutyDate(a.game?.game_date)"></span>
+                                      <template x-if="a.game?.opposition?.name">
+                                        <span class="text-slate-500"> · vs <span x-text="a.game.opposition.name"></span></span>
+                                      </template>
+                                    </div>
+                                    <div class="text-xs text-slate-600 mt-0.5">
+                                      🪑 <span x-text="a.family?.family_name || '(family removed)'"></span>
+                                    </div>
+                                  </div>
+                                  <div class="flex items-center gap-2 shrink-0">
+                                    <button x-show="canEdit()" @click="toggleLock(a)"
+                                      :class="a.is_locked ? 'text-amber-600' : 'text-slate-300 hover:text-amber-500'"
+                                      :title="a.is_locked ? 'Locked — protected from regeneration' : 'Unlocked — will reshuffle on regenerate'">
+                                      <span x-text="a.is_locked ? '🔒' : '🔓'"></span>
+                                    </button>
+                                    <button x-show="canEdit()" @click="clearAssignment(a.game_id)"
+                                      class="text-xs text-red-600 hover:underline">Clear</button>
+                                  </div>
+                                </div>
+                              </template>
+                            </div>
+                          </div>
+                        </div>
+                      </template>
+                    </div>
                   </div>
                 </template>
               </div>
@@ -1414,7 +1540,105 @@
                     <div>
                       <h2 class="text-lg font-semibold mb-3">Game week workflow</h2>
                       <div class="space-y-3">
-                        <template x-for="step in workflowSteps()" :key="step.key">
+
+                        <!-- Day -7: Availability request (placeholder until step 9) -->
+                        <template x-for="step in workflowSteps().filter(s => s.key === 'availability')" :key="step.key">
+                          <div class="bg-white border rounded-xl p-5"
+                               :class="step.windowOpen ? 'border-brand-300 bg-brand-50/30' : 'border-slate-200'">
+                            <div class="flex items-start justify-between gap-3 mb-2">
+                              <div class="flex items-start gap-2">
+                                <span class="text-xl" x-text="step.icon"></span>
+                                <div>
+                                  <h3 class="font-semibold" x-text="step.label"></h3>
+                                  <div class="text-xs text-slate-600 mt-0.5" x-text="step.status"></div>
+                                </div>
+                              </div>
+                              <span x-show="step.windowOpen"
+                                class="text-[10px] uppercase tracking-wider bg-brand-600 text-white rounded px-2 py-0.5">Now</span>
+                            </div>
+                            <div class="mt-2 text-xs text-slate-500 italic" x-text="step.placeholder"></div>
+                          </div>
+                        </template>
+
+                        <!-- Day -2: Logistics + bench duty (real duty UI) -->
+                        <template x-for="step in workflowSteps().filter(s => s.key === 'logistics')" :key="step.key">
+                          <div class="bg-white border rounded-xl p-5"
+                               :class="step.windowOpen ? 'border-brand-300 bg-brand-50/30' : 'border-slate-200'">
+                            <div class="flex items-start justify-between gap-3 mb-3">
+                              <div class="flex items-start gap-2">
+                                <span class="text-xl" x-text="step.icon"></span>
+                                <div>
+                                  <h3 class="font-semibold" x-text="step.label"></h3>
+                                  <div class="text-xs text-slate-600 mt-0.5">Comms message coming in step 9.</div>
+                                </div>
+                              </div>
+                              <span x-show="step.windowOpen"
+                                class="text-[10px] uppercase tracking-wider bg-brand-600 text-white rounded px-2 py-0.5">Now</span>
+                            </div>
+
+                            <!-- Bench duty inline -->
+                            <div class="mt-2 p-3 bg-slate-50 rounded-lg">
+                              <div class="flex items-center justify-between">
+                                <div class="text-sm">
+                                  <span class="text-slate-600">🪑 Bench duty:</span>
+                                  <template x-if="dutyFamilyName()">
+                                    <span class="font-semibold ml-1" x-text="dutyFamilyName()"></span>
+                                  </template>
+                                  <template x-if="!dutyFamilyName()">
+                                    <span class="italic text-slate-500 ml-1">Not assigned</span>
+                                  </template>
+                                  <template x-if="dutyAssignment?.is_locked">
+                                    <span class="ml-2 text-xs text-amber-600">🔒 Locked</span>
+                                  </template>
+                                </div>
+                                <div class="flex gap-2 text-xs">
+                                  <template x-if="dutyAssignment">
+                                    <button @click="toggleDutyLock()" class="text-slate-600 hover:text-amber-600"
+                                      :title="dutyAssignment.is_locked ? 'Unlock' : 'Lock to protect from regenerate'">
+                                      <span x-text="dutyAssignment.is_locked ? '🔒' : '🔓'"></span>
+                                    </button>
+                                  </template>
+                                  <button @click="startDutyReassign()" class="text-brand-600 hover:underline"
+                                    x-text="dutyAssignment ? 'Reassign' : 'Assign'"></button>
+                                  <template x-if="dutyAssignment">
+                                    <button @click="clearDuty()" class="text-red-600 hover:underline">Clear</button>
+                                  </template>
+                                </div>
+                              </div>
+
+                              <!-- Reassign form -->
+                              <template x-if="showDutyReassign">
+                                <div class="mt-3 pt-3 border-t border-slate-200">
+                                  <template x-if="dutyPool.length === 0">
+                                    <p class="text-xs text-slate-500 italic">
+                                      No families in the duty pool. Add players (with family links) to this team's roster first.
+                                    </p>
+                                  </template>
+                                  <template x-if="dutyPool.length > 0">
+                                    <div class="flex gap-2 items-center">
+                                      <select x-model="selectedDutyFamily" class="flex-1 border border-slate-300 rounded px-2 py-1.5 text-sm">
+                                        <option value="">— Pick a family —</option>
+                                        <template x-for="f in dutyPool" :key="f.id">
+                                          <option :value="f.id" x-text="f.family_name"></option>
+                                        </template>
+                                      </select>
+                                      <button @click="saveDutyReassign()"
+                                        class="bg-brand-600 hover:bg-brand-700 text-white text-xs rounded px-3 py-1.5">Save</button>
+                                      <button @click="cancelDutyReassign()"
+                                        class="text-xs text-slate-600 px-2 py-1.5">Cancel</button>
+                                    </div>
+                                  </template>
+                                  <p class="mt-2 text-[10px] text-slate-500">
+                                    Manual assignment locks the slot — won't be reshuffled by Generate Roster on the team page.
+                                  </p>
+                                </div>
+                              </template>
+                            </div>
+                          </div>
+                        </template>
+
+                        <!-- Day -1: Game day notice (placeholder until step 9) -->
+                        <template x-for="step in workflowSteps().filter(s => s.key === 'gameday')" :key="step.key">
                           <div class="bg-white border rounded-xl p-5"
                                :class="step.windowOpen ? 'border-brand-300 bg-brand-50/30' : 'border-slate-200'">
                             <div class="flex items-start justify-between gap-3 mb-2">

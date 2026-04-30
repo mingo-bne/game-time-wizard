@@ -11,6 +11,12 @@ function gameWeekView(currentClub, currentStaff, gameId, onNavigate) {
     error: '',
     game: null,
 
+    // Bench duty
+    dutyPool: [],
+    dutyAssignment: null,
+    showDutyReassign: false,
+    selectedDutyFamily: '',
+
     // Post-game form state
     postGame: {
       team_score: '',
@@ -24,6 +30,7 @@ function gameWeekView(currentClub, currentStaff, gameId, onNavigate) {
     async init() {
       try {
         await this.loadGame();
+        await this.loadDuty();
       } catch (err) {
         this.error = err.message;
       } finally {
@@ -41,6 +48,61 @@ function gameWeekView(currentClub, currentStaff, gameId, onNavigate) {
         status: this.game.status
       };
       this.postGameDirty = false;
+    },
+
+    async loadDuty() {
+      if (!this.game?.team?.id) return;
+      const [pool, allAssignments] = await Promise.all([
+        window.GTWData.listDutyPool(this.game.team.id),
+        window.GTWData.listDutyAssignments(this.game.team.id)
+      ]);
+      this.dutyPool = pool;
+      this.dutyAssignment = allAssignments.find(a => a.game_id === gameId) || null;
+    },
+
+    dutyFamilyName() {
+      return this.dutyAssignment?.family?.family_name || null;
+    },
+
+    async toggleDutyLock() {
+      if (!this.dutyAssignment) return;
+      try {
+        await window.GTWData.setDutyAssignmentLock(this.dutyAssignment.id, !this.dutyAssignment.is_locked);
+        await this.loadDuty();
+      } catch (err) {
+        this.error = err.message;
+      }
+    },
+
+    startDutyReassign() {
+      this.selectedDutyFamily = this.dutyAssignment?.family_id || '';
+      this.showDutyReassign = true;
+    },
+
+    cancelDutyReassign() {
+      this.showDutyReassign = false;
+      this.selectedDutyFamily = '';
+    },
+
+    async saveDutyReassign() {
+      if (!this.selectedDutyFamily) return;
+      try {
+        await window.GTWData.upsertDutyAssignment(gameId, this.selectedDutyFamily, true);   // manual = locked
+        this.showDutyReassign = false;
+        await this.loadDuty();
+      } catch (err) {
+        this.error = err.message;
+      }
+    },
+
+    async clearDuty() {
+      if (!confirm('Clear bench duty assignment for this game?')) return;
+      try {
+        await window.GTWData.removeDutyAssignment(gameId);
+        await this.loadDuty();
+      } catch (err) {
+        this.error = err.message;
+      }
     },
 
     canEdit() {
