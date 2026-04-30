@@ -71,20 +71,75 @@
             <p class="text-sm text-slate-500 mt-1">Club basketball management</p>
           </div>
 
+          <!-- ----- OAuth (primary) ----- -->
           <template x-if="!magicLinkSent">
-            <form @submit.prevent="sendMagicLink()" class="space-y-4">
-              <div>
-                <label class="block text-sm font-medium mb-1">Email</label>
-                <input type="email" required x-model="loginEmail"
-                  placeholder="you@example.com"
-                  class="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none" />
-              </div>
-              <button type="submit" :disabled="sending"
-                class="w-full bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white rounded-lg py-2 font-medium">
-                <span x-text="sending ? 'Sending…' : 'Send magic link'"></span>
+            <div class="space-y-3">
+              <!-- Apple -->
+              <button type="button" @click="signInWithProvider('apple')"
+                :disabled="sendingProvider !== null"
+                class="w-full flex items-center justify-center gap-2 bg-black hover:bg-slate-800 disabled:opacity-50 text-white rounded-lg py-2.5 font-medium text-sm">
+                <svg viewBox="0 0 384 512" class="w-4 h-4 fill-current" aria-hidden="true">
+                  <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z"/>
+                </svg>
+                <span x-text="sendingProvider === 'apple' ? 'Redirecting…' : 'Continue with Apple'"></span>
               </button>
-              <p class="text-xs text-slate-500 text-center">We'll email you a sign-in link. No password required.</p>
-            </form>
+
+              <!-- Microsoft -->
+              <button type="button" @click="signInWithProvider('azure')"
+                :disabled="sendingProvider !== null"
+                class="w-full flex items-center justify-center gap-2 bg-white hover:bg-slate-50 disabled:opacity-50 text-slate-800 border border-slate-300 rounded-lg py-2.5 font-medium text-sm">
+                <svg viewBox="0 0 23 23" class="w-4 h-4" aria-hidden="true">
+                  <rect x="1"  y="1"  width="10" height="10" fill="#f25022"/>
+                  <rect x="12" y="1"  width="10" height="10" fill="#7fba00"/>
+                  <rect x="1"  y="12" width="10" height="10" fill="#00a4ef"/>
+                  <rect x="12" y="12" width="10" height="10" fill="#ffb900"/>
+                </svg>
+                <span x-text="sendingProvider === 'azure' ? 'Redirecting…' : 'Continue with Microsoft'"></span>
+              </button>
+
+              <!-- Google -->
+              <button type="button" @click="signInWithProvider('google')"
+                :disabled="sendingProvider !== null"
+                class="w-full flex items-center justify-center gap-2 bg-white hover:bg-slate-50 disabled:opacity-50 text-slate-800 border border-slate-300 rounded-lg py-2.5 font-medium text-sm">
+                <svg viewBox="0 0 48 48" class="w-4 h-4" aria-hidden="true">
+                  <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.6-6 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/>
+                  <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 16 19 13 24 13c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.4 6.3 14.7z"/>
+                  <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2c-2 1.4-4.5 2.4-7.2 2.4-5.3 0-9.7-3.4-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/>
+                  <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.1-4.1 5.6l6.2 5.2C41.8 35 44 30 44 24c0-1.3-.1-2.4-.4-3.5z"/>
+                </svg>
+                <span x-text="sendingProvider === 'google' ? 'Redirecting…' : 'Continue with Google'"></span>
+              </button>
+
+              <!-- Divider + email fallback -->
+              <div class="flex items-center gap-2 pt-1">
+                <div class="flex-1 h-px bg-slate-200"></div>
+                <span class="text-[11px] uppercase tracking-wider text-slate-400">or</span>
+                <div class="flex-1 h-px bg-slate-200"></div>
+              </div>
+
+              <template x-if="!showEmailFallback">
+                <button type="button" @click="showEmailFallback = true"
+                  class="w-full text-sm text-brand-600 hover:underline py-1">
+                  Sign in with email link
+                </button>
+              </template>
+
+              <template x-if="showEmailFallback">
+                <form @submit.prevent="sendMagicLink()" class="space-y-3 pt-1">
+                  <div>
+                    <label class="block text-sm font-medium mb-1">Email</label>
+                    <input type="email" required x-model="loginEmail"
+                      placeholder="you@example.com"
+                      class="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none" />
+                  </div>
+                  <button type="submit" :disabled="sending"
+                    class="w-full bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white rounded-lg py-2 font-medium text-sm">
+                    <span x-text="sending ? 'Sending…' : 'Send magic link'"></span>
+                  </button>
+                  <p class="text-xs text-slate-500 text-center">We'll email you a sign-in link. No password required.</p>
+                </form>
+              </template>
+            </div>
           </template>
 
           <template x-if="magicLinkSent">
@@ -2332,11 +2387,14 @@
                             <textarea x-model="templateDrafts[mt]" rows="10"
                               class="w-full font-mono text-xs border border-slate-300 rounded p-3"
                               placeholder="Type your template here, using {{tokens}} as needed."></textarea>
-                            <div x-show="isAdmin()" class="flex gap-2 mt-3">
-                              <button @click="saveTemplate(mt)" :disabled="saving"
+                            <div x-show="isAdmin()" class="flex items-center gap-3 mt-3">
+                              <button @click="saveTemplate(mt)" :disabled="templateSavingType === mt"
                                 class="bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm rounded-lg px-4 py-2 font-medium">
-                                <span x-text="saving ? 'Saving…' : 'Save template'"></span>
+                                <span x-text="templateSavingType === mt ? 'Saving…' : 'Save template'"></span>
                               </button>
+                              <template x-if="templateSavedFlash === mt">
+                                <span class="text-sm text-green-700 font-medium">✓ Saved</span>
+                              </template>
                             </div>
                             <p x-show="!isAdmin()" class="text-xs text-slate-500 mt-2">
                               Only club admins can edit templates.

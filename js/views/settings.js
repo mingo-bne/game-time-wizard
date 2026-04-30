@@ -33,6 +33,8 @@ function settingsView(currentClub, currentStaff) {
     // comm templates
     commTemplates: [],
     templateDrafts: {},
+    templateSavingType: '',          // which template is currently saving (for spinner)
+    templateSavedFlash: '',          // shows ✓ briefly after save
     MESSAGE_TYPE_LABELS,
     ALL_TOKENS_HELP,
 
@@ -58,14 +60,27 @@ function settingsView(currentClub, currentStaff) {
 
     async saveTemplate(messageType) {
       this.error = '';
-      this.saving = true;
+      this.templateSavingType = messageType;
+      this.templateSavedFlash = '';
       try {
-        await window.GTWData.upsertCommTemplate(currentClub.id, messageType, this.templateDrafts[messageType] || '');
+        const draft = this.templateDrafts[messageType] || '';
+        if (!draft.trim()) {
+          this.error = 'Template cannot be empty.';
+          return;
+        }
+        await window.GTWData.upsertCommTemplate(currentClub.id, messageType, draft);
         await this.loadTemplates();
+        this.templateSavedFlash = messageType;
+        // Clear the green "Saved ✓" indicator after 3 seconds
+        setTimeout(() => {
+          if (this.templateSavedFlash === messageType) this.templateSavedFlash = '';
+        }, 3000);
       } catch (err) {
-        this.error = err.message;
+        // Surface the most useful info we can — RLS errors come through with a useful message
+        this.error = 'Save failed: ' + (err.message || String(err)) +
+          (err.message?.includes('row-level security') ? ' — your staff record may not have admin rights. Check is_admin = true in the staff table.' : '');
       } finally {
-        this.saving = false;
+        this.templateSavingType = '';
       }
     },
 

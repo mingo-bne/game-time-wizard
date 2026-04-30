@@ -10,7 +10,19 @@ window.GTWData = (function () {
     if (!window._gtw_supabase) {
       window._gtw_supabase = window.supabase.createClient(
         window.GTW_CONFIG.SUPABASE_URL,
-        window.GTW_CONFIG.SUPABASE_ANON
+        window.GTW_CONFIG.SUPABASE_ANON,
+        {
+          auth: {
+            // Defensive: make session persistence explicit so a future config
+            // change doesn't silently break "stay signed in" on the PWA.
+            persistSession: true,
+            autoRefreshToken: true,
+            detectSessionInUrl: true,
+            storage: window.localStorage,
+            storageKey: 'gtw-auth-session',
+            flowType: 'pkce'   // PKCE is required for OAuth on SPAs / PWAs
+          }
+        }
       );
     }
     return window._gtw_supabase;

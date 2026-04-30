@@ -23,7 +23,9 @@ function app() {
     // login form
     loginEmail: '',
     sending: false,
+    sendingProvider: null,    // 'apple' | 'microsoft' | 'google' while OAuth redirect is in flight
     magicLinkSent: false,
+    showEmailFallback: false, // collapse magic-link form by default; OAuth is primary
     loginError: '',
 
     // navigation
@@ -108,6 +110,40 @@ function app() {
     },
 
     // ---- auth actions ----
+
+    // OAuth sign-in (Apple / Microsoft / Google).
+    // Provider must be enabled in Supabase Dashboard → Authentication → Providers
+    // and the app's URL must be in the redirect allow-list.
+    //   provider: 'apple' | 'azure' | 'google'
+    //   ('azure' is Supabase's name for the Microsoft/Entra ID provider)
+    async signInWithProvider(provider) {
+      this.loginError = '';
+      this.sendingProvider = provider;
+      try {
+        const sb = window.GTWData.sb();
+        // Per-provider scopes — keep minimal; we only need the email claim
+        // for the auto_attach_staff_on_signup() trigger to match invitations.
+        const scopes = {
+          apple: 'email',
+          azure: 'email openid profile',
+          google: 'email profile'
+        }[provider] || 'email';
+
+        const { error } = await sb.auth.signInWithOAuth({
+          provider,
+          options: {
+            redirectTo: window.location.origin + window.location.pathname,
+            scopes
+          }
+        });
+        if (error) throw error;
+        // Browser is now redirecting to the provider; nothing else to do here.
+      } catch (err) {
+        this.loginError = err.message || `Failed to start ${provider} sign-in.`;
+        this.sendingProvider = null;
+      }
+    },
+
     async sendMagicLink() {
       this.loginError = '';
       this.sending = true;
@@ -133,6 +169,7 @@ function app() {
       await sb.auth.signOut();
       this.session = null;
       this.magicLinkSent = false;
+      this.showEmailFallback = false;
       this.loginEmail = '';
       window.location.hash = '#/dashboard';
     }
