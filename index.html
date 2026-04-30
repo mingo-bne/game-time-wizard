@@ -230,7 +230,11 @@
                             <button @click="openGame(g)" class="w-full text-left p-4 hover:bg-brand-50 transition">
                               <div class="flex items-start justify-between gap-3">
                                 <div class="min-w-0 flex-1">
-                                  <div class="font-medium" x-text="(g.team?.name || 'Team') + ' vs ' + (g.opposition?.name || 'TBD')"></div>
+                                  <div class="font-medium flex items-center gap-2">
+                                    <span class="inline-block w-2.5 h-2.5 rounded-full shrink-0"
+                                      :style="'background:' + (g.team?.color || '#475569')"></span>
+                                    <span x-text="(g.team?.name || 'Team') + ' vs ' + (g.opposition?.name || 'TBD')"></span>
+                                  </div>
                                   <div class="text-sm text-slate-600 mt-0.5">
                                     <span x-text="formatDate(g.game_date)"></span>
                                     <template x-if="g.game_time">
@@ -304,39 +308,43 @@
                   <p class="text-sm text-slate-500" x-show="!isAdmin()">Ask your club admin to create a team and assign you.</p>
                 </div>
 
-                <!-- Team list -->
-                <div x-show="!loading && teams.length > 0" class="bg-white border border-slate-200 rounded-xl overflow-hidden">
-                  <table class="w-full text-sm">
-                    <thead class="bg-slate-50 text-xs uppercase text-slate-600">
-                      <tr>
-                        <th class="text-left p-3">Team</th>
-                        <th class="text-left p-3">Age group</th>
-                        <th class="text-left p-3">Gender</th>
-                        <th class="text-left p-3">Division</th>
-                        <th class="text-left p-3">Format</th>
-                        <th class="text-left p-3">Rule mode</th>
-                        <th class="text-right p-3"></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <template x-for="t in teams" :key="t.id">
-                        <tr class="border-t border-slate-100 hover:bg-brand-50">
-                          <td class="p-3 font-medium">
-                            <a href="#" @click.prevent="open(t)" class="text-brand-700 hover:underline" x-text="t.name"></a>
-                          </td>
-                          <td class="p-3 text-slate-600" x-text="t.age_group || '—'"></td>
-                          <td class="p-3 text-slate-600" x-text="genderLabel(t.gender)"></td>
-                          <td class="p-3 text-slate-600" x-text="t.division || '—'"></td>
-                          <td class="p-3 text-slate-600" x-text="formatLabel(t)"></td>
-                          <td class="p-3 text-slate-600" x-text="ruleLabel(t)"></td>
-                          <td class="p-3 text-right">
-                            <button x-show="isAdmin()" @click="deleteTeam(t)"
-                              class="text-xs text-red-600 hover:underline">Delete</button>
-                          </td>
-                        </tr>
-                      </template>
-                    </tbody>
-                  </table>
+                <!-- Team tile grid -->
+                <div x-show="!loading && teams.length > 0"
+                  class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  <template x-for="t in teams" :key="t.id">
+                    <button @click="open(t)"
+                      class="group text-left bg-white border border-slate-200 hover:border-slate-400 hover:shadow-md transition rounded-xl overflow-hidden">
+                      <!-- Color band -->
+                      <div class="h-3" :style="'background:' + teamColor(t)"></div>
+
+                      <!-- Body -->
+                      <div class="p-4">
+                        <div class="flex items-start justify-between gap-2">
+                          <div class="min-w-0">
+                            <h3 class="text-lg font-bold truncate" x-text="t.name"></h3>
+                            <p class="text-xs text-slate-500 mt-0.5" x-text="contextLine(t) || 'No context set'"></p>
+                          </div>
+                          <span class="text-slate-300 group-hover:text-brand-600 text-xl">→</span>
+                        </div>
+
+                        <div class="mt-3 pt-3 border-t border-slate-100 grid grid-cols-2 gap-2 text-xs text-slate-600">
+                          <div>
+                            <div class="text-slate-400 uppercase tracking-wider text-[10px]">Format</div>
+                            <div class="font-medium" x-text="formatLabel(t)"></div>
+                          </div>
+                          <div>
+                            <div class="text-slate-400 uppercase tracking-wider text-[10px]">Mode</div>
+                            <div class="font-medium" x-text="t.rule_mode === 'equal_opportunity' ? 'Equal opp.' : 'Manual'"></div>
+                          </div>
+                        </div>
+
+                        <div x-show="isAdmin()" class="mt-3 pt-3 border-t border-slate-100 flex justify-end">
+                          <button @click.stop="deleteTeam(t)"
+                            class="text-xs text-red-600 hover:underline">Delete</button>
+                        </div>
+                      </div>
+                    </button>
+                  </template>
                 </div>
 
                 <!-- Create form -->
@@ -396,6 +404,26 @@
                         </div>
                       </div>
                       <div class="text-xs text-slate-500">Total game length: <span x-text="(newTeam.game_format_periods * newTeam.game_format_minutes_per_period)"></span> min</div>
+
+                      <!-- Color picker -->
+                      <div>
+                        <label class="block text-sm font-medium mb-1">Team color</label>
+                        <div class="flex flex-wrap gap-2 mb-2">
+                          <template x-for="c in TEAM_COLOR_PRESETS" :key="c.hex">
+                            <button type="button" @click="pickColor(c.hex)"
+                              :title="c.label"
+                              :style="'background:' + c.hex"
+                              :class="newTeam.color === c.hex ? 'ring-2 ring-offset-2 ring-slate-700' : 'hover:ring-2 hover:ring-slate-300'"
+                              class="w-8 h-8 rounded-full"></button>
+                          </template>
+                        </div>
+                        <div class="flex items-center gap-2">
+                          <span class="text-xs text-slate-500">Custom hex:</span>
+                          <input type="text" x-model="newTeam.color" placeholder="#475569"
+                            class="border border-slate-300 rounded px-2 py-1 text-sm w-28 font-mono" />
+                          <span class="w-6 h-6 rounded border border-slate-300" :style="'background:' + (newTeam.color || '#475569')"></span>
+                        </div>
+                      </div>
                       <div class="flex gap-2 pt-2">
                         <button type="submit" :disabled="saving"
                           class="bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm rounded-lg px-4 py-2 font-medium">
@@ -421,16 +449,40 @@
 
                 <template x-if="!loading && team">
                   <div class="space-y-6">
-                    <div>
-                      <h1 class="text-2xl font-bold" x-text="team.name"></h1>
-                      <div class="text-sm text-slate-500">
-                        <span x-text="team.age_group || 'No age group'"></span>
-                        <template x-if="team.gender">
-                          <span> · <span x-text="genderLabel(team.gender)"></span></span>
-                        </template>
-                        <template x-if="team.division">
-                          <span> · <span x-text="team.division"></span></span>
-                        </template>
+                    <!-- Coloured team header card -->
+                    <div class="bg-white border border-slate-200 rounded-xl overflow-hidden">
+                      <div class="h-3" :style="'background:' + teamColor()"></div>
+                      <div class="p-5">
+                        <div class="flex items-start justify-between gap-3 mb-3">
+                          <div>
+                            <h1 class="text-2xl font-bold" x-text="team.name"></h1>
+                            <div class="text-sm text-slate-500 mt-0.5">
+                              <span x-text="team.age_group || 'No age group'"></span>
+                              <template x-if="team.gender">
+                                <span> · <span x-text="genderLabel(team.gender)"></span></span>
+                              </template>
+                              <template x-if="team.division">
+                                <span> · <span x-text="team.division"></span></span>
+                              </template>
+                            </div>
+                          </div>
+                        </div>
+
+                        <!-- Quick-jump buttons (set localStorage and navigate) -->
+                        <div class="flex flex-wrap gap-2">
+                          <button @click="jumpTo('roster')"
+                            class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm rounded-lg px-3 py-1.5 font-medium">
+                            🏀 Roster
+                          </button>
+                          <button @click="jumpTo('ratings')"
+                            class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm rounded-lg px-3 py-1.5 font-medium">
+                            ⭐ Ratings
+                          </button>
+                          <button @click="jumpTo('games')"
+                            class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm rounded-lg px-3 py-1.5 font-medium">
+                            📅 Games
+                          </button>
+                        </div>
                       </div>
                     </div>
 
@@ -489,6 +541,26 @@
                           </div>
                         </div>
                         <div class="text-xs text-slate-500">Total: <span x-text="(teamForm.game_format_periods * teamForm.game_format_minutes_per_period)"></span> min</div>
+
+                        <!-- Color picker -->
+                        <div>
+                          <label class="block text-sm font-medium mb-1">Team color</label>
+                          <div class="flex flex-wrap gap-2 mb-2">
+                            <template x-for="c in TEAM_COLOR_PRESETS" :key="c.hex">
+                              <button type="button" @click="pickColor(c.hex)"
+                                :title="c.label"
+                                :style="'background:' + c.hex"
+                                :class="teamForm.color === c.hex ? 'ring-2 ring-offset-2 ring-slate-700' : 'hover:ring-2 hover:ring-slate-300'"
+                                class="w-8 h-8 rounded-full"></button>
+                            </template>
+                          </div>
+                          <div class="flex items-center gap-2">
+                            <span class="text-xs text-slate-500">Custom hex:</span>
+                            <input type="text" x-model="teamForm.color" placeholder="#475569"
+                              class="border border-slate-300 rounded px-2 py-1 text-sm w-28 font-mono" />
+                            <span class="w-6 h-6 rounded border border-slate-300" :style="'background:' + (teamForm.color || '#475569')"></span>
+                          </div>
+                        </div>
                         <button x-show="canEdit()" type="button" @click="saveTeam()" :disabled="saving"
                           class="bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm rounded-lg px-4 py-2 font-medium">
                           <span x-text="saving ? 'Saving…' : 'Save changes'"></span>
@@ -1534,8 +1606,10 @@
                 <template x-if="!loading && game">
                   <div class="space-y-6">
 
-                    <!-- Game header -->
-                    <div class="bg-white border border-slate-200 rounded-xl p-6">
+                    <!-- Game header (with team color band) -->
+                    <div class="bg-white border border-slate-200 rounded-xl overflow-hidden">
+                      <div class="h-3" :style="'background:' + (game.team?.color || '#475569')"></div>
+                      <div class="p-6">
                       <div class="flex items-start justify-between gap-4 mb-4">
                         <div>
                           <div class="text-sm text-slate-500 uppercase tracking-wider" x-text="game.team?.name"></div>
@@ -1563,6 +1637,7 @@
                         </div>
                       </div>
                       <div class="mt-3 text-sm font-medium text-brand-600" x-text="daysLabel()"></div>
+                      </div>
                     </div>
 
                     <!-- Workflow cards -->

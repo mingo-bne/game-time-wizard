@@ -398,6 +398,526 @@ The foundation is in place but not all of it is exposed in the UI yet. Coming in
 
 If everything still works after re-deploy, the foundation is solid. Tell me and I'll continue with step 5 (per-team Ratings UI).
 
+---
+
+# Step 5 — Testing the Ratings module
+
+No SQL migration needed for step 5 (the ratings table was rebuilt in step 4.5).
+
+## A. Re-deploy the frontend
+
+Upload the updated `index.html`, `js/app.js`, `js/lib/data.js`, and the new `js/views/ratings.js` to your GitHub repo. Wait 1 min for GH Pages.
+
+## B. Walk through
+
+1. Reload your live URL — you should see a new **⭐ Ratings** tab in the sidebar (mobile bottom nav now has 6 items)
+2. Click **Ratings** → team selector at top picks up your last-used team
+3. **Permission check:** if you're a Head Coach of this team, you'll see editable cards. If you're admin-only (not assigned as head_coach), you see a "Read-only — only the team's Head Coach can edit ratings" banner.
+4. Each player on the team's roster appears as a card with:
+   - Jersey + name + "Not rated yet" tag (if no rating exists)
+   - Or category sums (Phys/Skills/IQ) + Total/55 if rated
+5. Click a card to expand into the rating editor
+6. For each of the 11 sub-skills, click 1–5 to set the score. Selected button highlights brand orange.
+7. Category sums and averages update live as you click.
+8. Optionally add a Notes line.
+9. Click **Save rating** — card collapses, summary shows new totals.
+10. Re-open to edit; or **Clear rating** to wipe and start over.
+
+## C. Verify cross-team independence (the whole point of per-team ratings)
+
+If you have the same player on two teams (set up during 4.5 testing):
+1. Rate Alex on U14 — give him 5 in Speed, save.
+2. Switch team selector to U16 (or whatever the second team is).
+3. Alex appears as "Not rated yet" on U16 — confirming ratings don't cross teams.
+4. Rate him differently on U16 (e.g. 3 in Speed). Save.
+5. Switch back to U14 — his Speed is still 5. Confirmed: same human, different ratings per team context.
+
+## D. Team summary
+
+At the top of the Ratings view, three stats: **Rated** (count), **Unrated** (count), **Team avg** (average of total averages across rated players). Use this for a quick on-court 5 balance read.
+
+## E. Common issues
+
+**"I don't see the Ratings tab"** → Hard reload (Cmd+Shift+R) — old cached HTML may still be loaded.
+
+**"Save errors with permission denied"** → You're not assigned as Head Coach of this team. Go to Teams → click team → Staff section → set your role to Head Coach (admin can do this).
+
+If everything works, tell me and I'll move to step 6 (Schedule + Game Week shell — the biggest remaining module).
+
+---
+
+# Step 6 — Testing the Schedule + Game Week shell
+
+No SQL migration needed (games table exists from step 1; opposition_id and game scores added in step 4.6).
+
+## A. Re-deploy the frontend
+
+Upload changed files: `index.html`, `js/lib/data.js`, plus the two new files `js/views/games.js` and `js/views/game-week.js`. Wait 1 min for GH Pages.
+
+## B. Walk through the Games list
+
+1. Reload your live URL → click **📅 Games** in the sidebar
+2. Team selector at top picks up your last-used team
+3. Click **+ New game** → fill in:
+   - Date (any date this week)
+   - Time (e.g. 10:30)
+   - Opposition: pick from dropdown OR click **+ New** to add one inline (e.g. "Belmont Pointers"), then pick it
+   - Venue (e.g. Auchenflower Stadium), Court (e.g. Court 2)
+   - Periods + minutes default to your team's settings (override if non-standard)
+   - Status: Scheduled
+   - Save
+4. Game appears in the table with date, opposition, venue, format, "Scheduled" badge
+5. Click the date → opens the **Game Week** screen
+
+## C. Walk through the Game Week screen
+
+1. Game header shows team, opposition, date, time/venue/court/format, status badge, days-to-go indicator
+2. Three workflow cards:
+   - **Day -7 to -3:** Availability request — placeholder for step 9
+   - **Day -2:** Logistics + duty reminder — placeholder for steps 7+9
+   - **Day -1:** Game day notice + rotation — placeholder for steps 8+9
+   - The card matching your current window (based on days-to-go) gets a brand-orange "Now" badge and tinted background
+3. **Post-game card** at the bottom is functional:
+   - Set status to "Completed", enter team_score and opposition_score
+   - Result auto-computes (win/loss/draw) when both scores are set + status is completed
+   - Add coach notes
+   - Save → reload page, values persist
+
+## D. Round trip back to the list
+
+1. Click **← Back to games** → you're back at the games list
+2. Edit the game (pencil icon) — change time or notes, save
+3. Verify changes appear in the list and on the Game Week screen
+
+## E. Common issues
+
+**"Opposition dropdown is empty"** → No opponents exist yet for this club. Use the **+ New** button next to the dropdown to add one inline.
+
+**"Inline opponent add gives a duplicate name error"** → Opponent name already exists for this club (uniqueness constraint). Pick from the dropdown instead.
+
+If everything works, the spine of the app is in place. Tell me and I'll continue with step 7 (Bench Duty engine — fills in the Day -2 workflow card).
+
+---
+
+# Step 6.5 — Testing the division + age_group filter
+
+## A. Run the migration
+
+1. Supabase → SQL Editor → + New query
+2. Paste contents of `db/migration_step6_5.sql` → Run
+3. Should see "Success. No rows returned"
+
+Verify:
+```sql
+select column_name from information_schema.columns
+ where table_name='teams' and column_name='division';
+-- 1 row
+
+select column_name from information_schema.columns
+ where table_name='opponents' and column_name in ('age_group','division');
+-- 2 rows
+```
+
+## B. Re-deploy the frontend
+
+Upload changed files: `index.html`, `js/lib/data.js`, `js/views/teams.js`, `js/views/team-detail.js`, `js/views/games.js`, `db/schema.sql`, `db/migration_step6_5.sql`. Wait 1 min for GH Pages.
+
+## C. Walk through
+
+1. **Update an existing team** (Teams → click team → Settings) — set Age Group "B10" and Division "Div 5". Save.
+2. **Open Games** → **+ New game** → opposition dropdown should be empty (no opponents tagged B10/Div 5 yet). Click **+ New** opponent.
+3. The inline opponent form is now richer: name, age group, division — pre-filled with B10 / Div 5. Add "Belmont Pointers" — saves with B10/Div 5 tags.
+4. Belmont appears in the dropdown showing "Belmont Pointers (B10 / Div 5)".
+5. Add a second opponent in a different bracket (e.g. "Some Other Team", manually change age_group to B12, Div 3). Save.
+6. Opposition dropdown only shows Belmont (B10 / Div 5 matches your team). Some Other Team (B12 / Div 3) is hidden by the filter.
+7. Untick **Filter by team's age group + division** → both opponents now visible (useful for friendlies / lightning matches).
+8. **Re-grading test:** Edit your team, change Division to "Div 4". Open Games again, opposition dropdown is now empty (no B10/Div 4 opponents). Add one, or untick the filter to use existing.
+
+If filtering behaves correctly, division design holds. Tell me and I'll continue with step 7 (Bench Duty).
+
+---
+
+# Step 6.6 — Testing gender on teams + functional dashboard
+
+## A. Run the migration
+
+1. Supabase → SQL Editor → + New query
+2. Paste contents of `db/migration_step6_6.sql` → Run
+3. Should see "Success. No rows returned"
+
+## B. Re-deploy the frontend
+
+Upload changed files: `index.html`, `js/lib/data.js`, `js/views/teams.js`, `js/views/team-detail.js`, the new `js/views/dashboard.js`, `db/schema.sql`, `db/migration_step6_6.sql`. Wait 1 min for GH Pages.
+
+## C. Test gender on teams
+
+1. **Teams** → **+ New team** — Gender dropdown now appears (Boys / Girls / Mixed / Open / Adult). Pick one.
+2. Save → new column "Gender" in the teams list shows "Boys" / "Girls" etc.
+3. Open a team → Settings tab → Gender dropdown shows current value, editable.
+4. Team detail header now reads e.g. "U10 · Boys · Div 5".
+5. Existing teams created before this change have Gender = "—" until you edit them and pick a value.
+
+## D. Test the dashboard
+
+1. Click **📋 Dashboard** in the sidebar (or hard-reload home).
+2. Should see your name in the welcome line.
+3. **Stat cards (4 across):** Teams, Players, Upcoming games, Staff — each clickable to its respective page.
+4. **Next 5 games:** if you have upcoming games, they appear sorted by date with team, opposition, date/time/venue, and a coloured "In N days" / "Today" / "Tomorrow" indicator. Click any game → opens its Game Week screen.
+5. If no games upcoming, an empty-state prompts you to add one.
+6. **Quick links** at the bottom: Manage roster / Update ratings / Schedule game / Settings — all clickable shortcuts.
+
+## E. Common issues
+
+**"Dashboard says counts but no upcoming games even though I have games"** → Check the games are dated TODAY or in the future (past games and cancelled games are filtered out).
+
+**"Gender dropdown shows blank for old teams"** → Existing teams created before step 6.6 have null gender. Edit each team and pick a value.
+
+If both work, tell me and I'll continue with step 7 (Bench Duty).
+
+---
+
+# Step 7 — Testing Bench Duty engine
+
+No SQL migration needed for step 7 (the duty tables already exist from step 1).
+
+## A. Re-deploy
+
+Upload changed files: `index.html`, `js/lib/data.js`, `js/views/team-detail.js`, `js/views/game-week.js`. Wait 1 min.
+
+## B. Set up the duty pool
+
+1. Make sure your team has players with **family links** (Roster → Players → each player must have a Family selected). Without family links, the duty pool will be empty.
+2. Open Teams → click a team → scroll to the **Bench duty** section
+3. **Duty pool** appears on the left listing every family with at least one active player on this team
+
+## C. Generate the roster
+
+1. Make sure you have at least 2-3 upcoming scheduled games (Games → + New game)
+2. Click **Generate roster** — should pop an alert with assignment summary
+3. **Duty roster** on the right populates with date → family rows
+4. The fairness algorithm picks the family with the fewest current duties; ties broken alphabetically
+
+## D. Test exclusions
+
+1. Click **+ Add exclusion** on a family
+2. Pick "One-off date" → set the date to one of your upcoming games → reason "travelling"
+3. Save
+4. Click **Generate roster** again → that family is skipped for THAT date; another family takes the slot
+5. Try a "Date range" exclusion (e.g. all of next week)
+6. Try "Full season" with no dates → that family is excluded from ALL upcoming games
+
+## E. Test locks + manual override
+
+1. On a duty assignment, click the 🔓 icon → it changes to 🔒 (locked)
+2. Click **Generate roster** again → the locked assignment doesn't change
+3. Click **Clear** on an assignment → removed
+4. Open a Game Week (Games → click a game)
+5. Day -2 card now shows the assigned bench duty family
+6. Click **Reassign** → pick a different family from the dropdown → Save
+   - Manual reassignment auto-locks the slot (won't be reshuffled by Generate Roster)
+7. Click **Clear** to remove
+
+## F. Common issues
+
+**"Duty pool is empty" / "Add players (with family links) to this team first"** → Open Roster → for each player, click Edit and select a Family from the dropdown. Players without a family aren't represented in the duty pool.
+
+**"Generate roster says X games had no eligible family"** → Some games have all families excluded for that date. Check exclusions or add more families.
+
+**"Reassign dropdown is empty on Game Week"** → The team has no families with active players. Same fix as above.
+
+If everything works, the duty engine is in place. Tell me and I'll continue with step 8 (Equal Opportunity Rotation engine — the biggest algorithm in the project).
+
+---
+
+# Step 7.5 — Testing player-based bench duty (reversal of step 7)
+
+⚠️ This **wipes any duty assignments and exclusions** you created in step 7 testing (they were family-based, now player-based — not 1:1).
+
+## A. Run the migration
+
+1. Supabase → SQL Editor → + New query
+2. Paste contents of `db/migration_step7_5.sql` → Run
+
+## B. Re-deploy
+
+Upload changed files: `index.html`, `js/lib/data.js`, `js/views/team-detail.js`, `js/views/game-week.js`, `db/schema.sql`, `db/rls.sql`, `db/migration_step7_5.sql`. Wait 1 min.
+
+## C. Test the player pool
+
+1. Open Teams → click a team → scroll to **Bench duty**
+2. **Duty pool** now shows PLAYERS (not families). Each row: checkbox · player name · family name (small) · current duty count
+3. **Sibling test:** if you have two siblings on the team (Alex + Sam Smith), both default to ticked. Untick Sam → only Alex carries duty for the Smith family.
+4. Pool counter at top reads e.g. "7 of 8 players in rotation"
+5. Add an exclusion to a player (one-off date / range / full season) — same UX as before, just per-player now
+
+## D. Generate roster
+
+1. Click **Generate roster** → assignments go to PLAYERS
+2. Roster shows: date · vs opposition · 🪑 Player Name · Family Name (greyed)
+3. Reshuffle works the same as before; locked assignments stay
+
+## E. Game Week reassign
+
+1. Open any game → Day -2 card shows the assigned player (with family in parens)
+2. Click **Reassign** → dropdown shows duty-eligible players (siblings you unticked are NOT in the dropdown)
+3. Assign a different player → auto-locks
+
+## F. Availability-aware re-generation (advanced)
+
+Once availability tracking ships in step 8, you'll be able to:
+1. Mark a player unavailable for a specific game
+2. Click Generate Roster again on the team page
+3. The algorithm skips that player for that specific game and gives the duty to the next eligible player by count
+
+For now, you can test this manually by inserting an availability row in Supabase:
+```sql
+insert into availabilities (game_id, player_id, status)
+values ('<game-uuid>', '<player-uuid>', 'unavailable');
+-- then re-run Generate Roster — that player won't be picked for that game.
+```
+
+If the player-based duty works, tell me and I'll continue with step 8 (Rotation Engine).
+
+---
+
+# Step 8 — Testing the Equal Opportunity Rotation engine
+
+No SQL migration needed (rotation_plans + availabilities tables already exist).
+
+## A. Re-deploy
+
+Upload changed files: `index.html`, `js/lib/data.js`, the new `js/lib/rotation.js`, `js/views/game-week.js`, `css/app.css`. Wait 1 min.
+
+## B. Pre-requisites
+
+- Your team needs `rule_mode = 'equal_opportunity'` (Junior). For senior teams (No Engine), the Day -1 card shows a step-10 placeholder.
+- At least 5 active players on the roster
+- A scheduled game
+
+## C. Set availability
+
+1. Open the game's Game Week screen → scroll to Day -1 card
+2. Click **▶ Show availability list**
+3. For each player, click ✓ In / ✗ Out / 🤕 Injured. The header updates: ✓ N available · ✗ N out · 🤕 N injured · ? N unconfirmed
+4. Or click **Mark all unconfirmed as Available** to fast-fill
+
+## D. Generate the rotation
+
+1. Click **Generate** in the Rotation plan section
+2. Algorithm runs immediately (it's all client-side)
+3. A matrix appears: rows = players, columns = substitution blocks (Q1 0-2, Q1 2-4, ...), cells = ● (on court) or · (off)
+4. Far-right column shows total minutes per player — should be approximately equal across players (±1-2 min depending on roster size and game format)
+
+## E. Verify fairness
+
+1. Note the per-player minute totals — they should be very close (e.g. 8 players × 32 min game / 8 = 20 min each, with possible 18/19/20 split)
+2. Test edge cases:
+   - **Exactly 5 available** → everyone plays the whole game (no subs)
+   - **Fewer than 5 available** → error: "Need at least 5 available players"
+   - **8+ available with mixed game formats** (try a team with 4×8 and another with 2×20)
+
+## F. Lock + regenerate
+
+1. Click 🔓 to lock the plan — icon changes to 🔒
+2. Try **Regenerate** — confirmation says "Plan is locked. Unlock and regenerate?"
+3. Decline → plan unchanged
+4. Unlock manually → 🔒 → 🔓 → Regenerate freely
+
+## G. Print
+
+1. Click 🖨️ Print → browser print dialog opens
+2. Preview should show ONLY the rotation chart (sidebar/nav hidden, on-court cells stay visible in greyscale)
+3. Print or save as PDF for the bench
+
+## H. Re-run after availability change
+
+1. Mark a player as Out (was previously Available)
+2. Regenerate the rotation → the now-unavailable player is excluded; everyone else's minutes adjust upward
+
+## I. Common issues
+
+**"No plan generated yet"** despite players being available → Check that they're marked **Available** specifically (the algorithm only picks confirmed-available players, not unconfirmed).
+
+**Print preview shows the whole app, not just the chart** → Hard reload after deploy (Cmd+Shift+R) to pick up new print CSS.
+
+**Per-player minutes look uneven** → That's expected if the math doesn't divide evenly (e.g. 9 players × 32 min × 5 / 9 = 17.78 min each → some get 18, some 17). The algorithm minimises spread but can't make it perfect.
+
+If everything works, the engine is in place. Tell me — I'll continue with step 9 (Comms templates: the three copy/paste messages).
+
+---
+
+# Step 8.5 — Testing per-team sub block + borrowed players
+
+## A. Run the migration
+
+1. Supabase → SQL Editor → + New query
+2. Paste contents of `db/migration_step8_5.sql` → Run
+
+## B. Re-deploy
+
+Upload changed files: `index.html`, `js/lib/data.js`, `js/lib/rotation.js`, `js/views/teams.js`, `js/views/team-detail.js`, `js/views/game-week.js`, `db/schema.sql`, `db/rls.sql`. Wait 1 min.
+
+## C. Configure per-team sub block size
+
+1. Open Teams → click a team → Settings tab
+2. New field **Sub block (min)** below "Minutes per period". Default is 2.
+3. For your U10 team: set to 5. For U14: set to 10. Save.
+4. The next rotation generated for that team uses the new block size.
+
+## D. Verify block size actually applies
+
+1. Open a game on the U14 team (with rotation_block_minutes = 10) → Day -1 card → Generate rotation
+2. Matrix columns should show Q1 0-10, Q2 0-10, Q3 0-10, Q4 0-10 (effectively quarter-locked subs)
+3. Switch to a U10 team game → Generate → columns should be 5-min blocks (Q1 0-5, Q1 5-8 if quarter is 8 min, ...)
+
+## E. Borrow a player
+
+1. On any Game Week → scroll to **Borrowed players for this game**
+2. Click **+ Borrow player**
+3. Search box filters players from your club NOT on this team. Pick one (radio).
+4. Pick a priority weight: 0.25 / 0.50 (default) / 0.75 / 1.00
+5. Click **Add as borrowed**
+6. Player appears in the borrowed list AND in the availability list with a yellow `Borrowed · w0.5` badge
+
+## F. Generate rotation with borrowed players
+
+1. Mark all players (regulars + borrowed) as Available
+2. Click Generate
+3. The borrowed player appears in the rotation matrix with "(borrowed)" suffix on their name
+4. Their total minutes should be roughly half (or whatever weight × regular share) of a regular player's minutes
+
+Math check: 8 regulars + 1 borrowed (w=0.5) in 32-min game (160 court-min):
+- Total weighted = 8 + 0.5 = 8.5
+- Regular share: 160/8.5 = ~18.8 min each
+- Borrowed share: 0.5 × (160/8.5) = ~9.4 min
+- Sums to 8 × 18.8 + 9.4 = ~160 ✓
+
+## G. Adjust weight
+
+1. In the borrowed players list, change a borrow's weight dropdown
+2. Click Regenerate rotation → new matrix reflects the updated weight
+
+## H. Remove borrow
+
+1. Click Remove next to a borrowed player → gone
+2. Their availability is also implicitly removed (no longer in eligible list)
+
+## I. Common issues
+
+**"Borrowed player isn't appearing in rotation"** → Check they're marked Available in the availability list (the algorithm only picks confirmed-available players, regular or borrowed).
+
+**"Block size of 7 in a 8-min period creates weird columns"** → That's expected — the last block of the period is partial (7 + 1). Algorithm handles it but the chart looks asymmetric. Pick a block size that divides cleanly into the period (2, 4, 8 for 8-min periods; 5 or 10 for 10-min; etc.).
+
+If everything works, tell me and I'll continue with step 9 (Comms templates).
+
+---
+
+# Step 8.6 — Testing manual rotation editing (covers senior scratch pad too)
+
+No SQL migration needed.
+
+## A. Re-deploy
+
+Upload changed files: `index.html`, `js/views/game-week.js`. Wait 1 min.
+
+## B. Test on a JUNIOR team (override the algorithm)
+
+1. Open a junior team game → Day -1 card → Generate rotation
+2. Matrix appears with ● and · cells
+3. Each cell now has hover feedback (`:cursor-pointer` + ring on hover) — they're clickable
+4. **Tap an on-court ● cell** → it highlights yellow with a ring
+5. A yellow banner appears at the top: "🔄 Selected for swap. Tap an off-court cell in the same column…"
+6. **Tap an off-court · cell in the SAME column** → players swap. Yellow highlight clears.
+7. Per-player Min totals (right column) recompute live
+8. Tap an on-court cell again → cancel selection (or click the Cancel button in the banner)
+
+## C. Test "block has space" (senior or borrow scenario)
+
+1. On a junior team, click the ❌ next to any player on a block (visible only when canEdit) — wait, removal isn't on the cells
+2. Actually: tap an on-court cell (selecting), then tap an off-court cell in same column to swap. To leave only 4 on court, you'd need a different action.
+3. **Easier test: use a senior team for empty-plan testing (next section).**
+
+## D. Test on a SENIOR team (build from scratch)
+
+1. Edit a team → set Rule mode to **No Engine** → Save
+2. Open a game on that team → Day -1 card
+3. Set 5+ players to Available
+4. Click **Start empty plan** → matrix appears with all cells as `+` (off court, ready to add)
+5. **Tap any `+` cell** → that player is added to that block (cell becomes ●)
+6. Add up to 5 players in the same column
+7. After 5 are on, the column behaves like the junior case — tap on-court to mark for swap, tap off-court to swap them in
+
+## E. Lock the plan
+
+1. Click 🔓 to lock — icon becomes 🔒
+2. Try Generate (junior only) → confirms "Plan is locked. Unlock and regenerate?"
+3. Manual edits still work even when locked (the lock just protects from regenerate / accidental clear)
+
+## F. Common issues
+
+**"Cells aren't clickable"** → `canEdit()` returned false. Check that you're a club admin or staff on the team.
+
+**"+ cells not showing in some columns"** → Those columns might be already at 5 on court AND no swap selected. Tap a ● cell first to enable swap mode for that column.
+
+**"After regenerate, my manual edits are gone"** → Lock the plan (🔒 button) before regenerating to protect manual edits. ADR-019 design — locked plans are never overwritten by Generate.
+
+If both junior override and senior empty-build scenarios work, we're done. Tell me and I'll continue with step 9 (Comms templates).
+
+---
+
+# Step 8.7 — Testing tile-based Teams + team color
+
+## A. Run the migration
+
+1. Supabase → SQL Editor → + New query
+2. Paste contents of `db/migration_step8_7.sql` → Run
+
+## B. Re-deploy
+
+Upload changed files: `index.html`, `js/lib/data.js`, `js/views/teams.js`, `js/views/team-detail.js`, `db/schema.sql`, `db/migration_step8_7.sql`. Wait 1 min.
+
+## C. Visual check
+
+1. Open **Teams** — table is gone. You see tiles in a responsive grid (1 column on phone, up to 4 on desktop).
+2. Each tile has: thin color band on top, team name (large), context line (age/gender/division), format + mode summary. Hover → border darkens + soft shadow + arrow turns brand-orange.
+3. Click anywhere on the tile → opens that team's detail page.
+
+## D. Set a team color
+
+1. Edit a team (Teams → tile → Settings) — new **Team color** picker appears below the format row.
+2. 14 preset swatches. Click one → picker shows ring around your selected colour. Or type a custom hex (e.g. `#1e3a8a`).
+3. Save → the team detail page header band changes to your chosen colour.
+4. Go back to Teams → that team's tile band reflects the new colour.
+
+## E. Color propagates across the app
+
+5. **Dashboard:** Upcoming games list now shows a small color dot next to each team-vs-opposition line.
+6. **Game Week:** Game header card has the team's color band at the top.
+7. (More surfaces — game cards, comm message previews — pick up the color in subsequent steps.)
+
+## F. Quick-jump from team detail
+
+1. Open a team detail. Below the header band, three action buttons: **🏀 Roster**, **⭐ Ratings**, **📅 Games**.
+2. Click any → that page opens with the team auto-selected (uses localStorage `gtw_last_team`).
+
+## G. Common issues
+
+**"Tiles look the same color"** → Existing teams have null `color` until you edit them. Default fallback is slate (#475569). Edit each team and pick a distinctive colour.
+
+**"Custom hex isn't applying"** → Make sure you include the `#` prefix and use 7 chars total (e.g. `#1e3a8a`, not `1e3a8a`).
+
+If the visual works, tell me and I'll continue with step 9 (Comms templates — the last functional module).
+
+
+
+
+
+
+
+
+
+
+
 
 
 

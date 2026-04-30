@@ -1,6 +1,25 @@
 // =====================================================================
-// Teams view — list + create + delete (edit happens in team-detail view)
+// Teams view — tile grid + create + delete (edit happens in team-detail view)
 // =====================================================================
+const TEAM_COLOR_PRESETS = [
+  { hex: '#1e3a8a', label: 'Navy' },
+  { hex: '#2563eb', label: 'Royal' },
+  { hex: '#0ea5e9', label: 'Sky' },
+  { hex: '#14b8a6', label: 'Teal' },
+  { hex: '#16a34a', label: 'Green' },
+  { hex: '#65a30d', label: 'Lime' },
+  { hex: '#eab308', label: 'Gold' },
+  { hex: '#f59e0b', label: 'Amber' },
+  { hex: '#f97316', label: 'Orange' },
+  { hex: '#dc2626', label: 'Red' },
+  { hex: '#db2777', label: 'Pink' },
+  { hex: '#9333ea', label: 'Purple' },
+  { hex: '#475569', label: 'Slate' },
+  { hex: '#111827', label: 'Black' }
+];
+
+const DEFAULT_TEAM_COLOR = '#475569';   // slate — neutral default
+
 function teamsView(currentClub, currentStaff, onNavigate) {
   return {
     loading: true,
@@ -13,11 +32,15 @@ function teamsView(currentClub, currentStaff, onNavigate) {
       age_group: '',
       gender: '',
       division: '',
+      color: DEFAULT_TEAM_COLOR,
       rule_mode: 'equal_opportunity',
       game_format_periods: 2,
       game_format_minutes_per_period: 20,
       rotation_block_minutes: 2
     },
+
+    TEAM_COLOR_PRESETS,
+    DEFAULT_TEAM_COLOR,
 
     async init() {
       await this.loadTeams();
@@ -49,12 +72,29 @@ function teamsView(currentClub, currentStaff, onNavigate) {
       return { M: 'Boys', F: 'Girls', X: 'Mixed', NA: 'Open' }[g] || '—';
     },
 
+    teamColor(t) {
+      return t?.color || DEFAULT_TEAM_COLOR;
+    },
+
+    contextLine(t) {
+      const parts = [];
+      if (t.age_group) parts.push(t.age_group);
+      if (t.gender) parts.push(this.genderLabel(t.gender));
+      if (t.division) parts.push(t.division);
+      return parts.join(' · ');
+    },
+
+    pickColor(hex) {
+      this.newTeam.color = hex;
+    },
+
     startCreate() {
       this.newTeam = {
         name: '',
         age_group: '',
         gender: '',
         division: '',
+        color: DEFAULT_TEAM_COLOR,
         rule_mode: 'equal_opportunity',
         game_format_periods: 2,
         game_format_minutes_per_period: 20,
@@ -77,6 +117,7 @@ function teamsView(currentClub, currentStaff, onNavigate) {
           age_group: this.newTeam.age_group.trim(),
           gender: this.newTeam.gender || null,
           division: this.newTeam.division.trim(),
+          color: this.newTeam.color || DEFAULT_TEAM_COLOR,
           game_format_periods: parseInt(this.newTeam.game_format_periods, 10),
           game_format_minutes_per_period: parseInt(this.newTeam.game_format_minutes_per_period, 10),
           rotation_block_minutes: parseInt(this.newTeam.rotation_block_minutes, 10) || 2

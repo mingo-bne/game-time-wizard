@@ -82,10 +82,18 @@ GitHub Pages                             │  rotation_plans, comm_templates,  �
 | 4 | Roster (players + families) | ✅ Done |
 | 4.5 | Restructure to club-level players + memberships | ✅ Done |
 | 4.6 | Cross-tool foundation (seasons, opponents, plays, prefs) | ✅ Done — UI surfaces in later steps |
-| 5 | Player Ratings module (11 sub-skills, per team) | ⏳ Next |
-| 6 | Schedule + Game entity + Game Week screen shell | Pending |
-| 7 | Bench Duty engine | Pending |
-| 8 | Equal Opportunity Rotation engine | Pending |
+| 5 | Player Ratings module (11 sub-skills, per team) | ✅ Done |
+| 6 | Schedule + Game entity + Game Week screen shell | ✅ Done |
+| 6.5 | Division on teams + age_group/division on opponents (filters opposition picker) | ✅ Done |
+| 6.6 | Gender on teams + functional dashboard (counts, upcoming games, quick links) | ✅ Done |
+| 7 | Bench Duty engine | ✅ Done |
+| 7.5 | Refactor: Bench Duty family-based → player-based (sibling toggle, availability-aware) | ✅ Done |
+| 8 | Equal Opportunity Rotation engine (per-game availability + period-by-period chart + print) | ✅ Done |
+| 8.5 | Per-team sub block size + borrowed players (priority weight reduces share) | ✅ Done |
+| 8.6 | Manual rotation editing — also covers senior "scratch pad" use case (ADR-020) | ✅ Done |
+| 8.7 | Tile-based Teams view + per-team color (used for tiles, headers, dashboard chips) | ✅ Done |
+| 9 | Comms templates (3 messages per game) | ⏳ Next |
+| 10 | ~~Senior scratch pad~~ — superseded by step 8.6, deleted from build sequence | — |
 | 9 | Comms templates (3 messages per game) | Pending |
 | 10 | Senior team scratch pad | Pending |
 | 11 | End-to-end run-through with one real team | Pending |

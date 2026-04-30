@@ -1,6 +1,23 @@
 // =====================================================================
-// Team Detail view — edit team settings + manage staff assignments
+// Team Detail view — edit team settings + manage staff assignments + duty
 // =====================================================================
+const TEAM_COLOR_PRESETS_DETAIL = [
+  { hex: '#1e3a8a', label: 'Navy' },
+  { hex: '#2563eb', label: 'Royal' },
+  { hex: '#0ea5e9', label: 'Sky' },
+  { hex: '#14b8a6', label: 'Teal' },
+  { hex: '#16a34a', label: 'Green' },
+  { hex: '#65a30d', label: 'Lime' },
+  { hex: '#eab308', label: 'Gold' },
+  { hex: '#f59e0b', label: 'Amber' },
+  { hex: '#f97316', label: 'Orange' },
+  { hex: '#dc2626', label: 'Red' },
+  { hex: '#db2777', label: 'Pink' },
+  { hex: '#9333ea', label: 'Purple' },
+  { hex: '#475569', label: 'Slate' },
+  { hex: '#111827', label: 'Black' }
+];
+
 function teamDetailView(currentClub, currentStaff, teamId, onNavigate) {
   return {
     loading: true,
@@ -39,6 +56,7 @@ function teamDetailView(currentClub, currentStaff, teamId, onNavigate) {
         age_group: this.team.age_group || '',
         gender: this.team.gender || '',
         division: this.team.division || '',
+        color: this.team.color || '#475569',
         rule_mode: this.team.rule_mode,
         game_format_periods: this.team.game_format_periods,
         game_format_minutes_per_period: this.team.game_format_minutes_per_period,
@@ -214,6 +232,7 @@ function teamDetailView(currentClub, currentStaff, teamId, onNavigate) {
           age_group: this.teamForm.age_group.trim() || null,
           gender: this.teamForm.gender || null,
           division: this.teamForm.division.trim() || null,
+          color: this.teamForm.color || null,
           rule_mode: this.teamForm.rule_mode,
           game_format_periods: parseInt(this.teamForm.game_format_periods, 10),
           game_format_minutes_per_period: parseInt(this.teamForm.game_format_minutes_per_period, 10),
@@ -288,6 +307,23 @@ function teamDetailView(currentClub, currentStaff, teamId, onNavigate) {
 
     genderLabel(g) {
       return { M: 'Boys', F: 'Girls', X: 'Mixed', NA: 'Open' }[g] || '—';
+    },
+
+    teamColor() {
+      return this.team?.color || '#475569';
+    },
+
+    pickColor(hex) {
+      this.teamForm.color = hex;
+    },
+
+    TEAM_COLOR_PRESETS: TEAM_COLOR_PRESETS_DETAIL,
+
+    // Quick-jump to other team-scoped pages — set localStorage so the destination
+    // view picks up this team automatically.
+    jumpTo(route) {
+      localStorage.setItem('gtw_last_team', teamId);
+      onNavigate(route);
     }
   };
 }

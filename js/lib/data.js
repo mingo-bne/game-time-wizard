@@ -105,6 +105,7 @@ window.GTWData = (function () {
       age_group: fields.age_group || null,
       gender:    fields.gender    || null,
       division:  fields.division  || null,
+      color:     fields.color     || null,
       rule_mode: fields.rule_mode || 'equal_opportunity',
       game_format_periods: fields.game_format_periods || 2,
       game_format_minutes_per_period: fields.game_format_minutes_per_period || 20,
@@ -540,7 +541,7 @@ window.GTWData = (function () {
         .gte('game_date', today)
         .neq('status', 'cancelled'),
       sb().from('games')
-        .select('*, team:team_id ( id, name, club_id ), opposition:opposition_id ( id, name )')
+        .select('*, team:team_id ( id, name, club_id, color ), opposition:opposition_id ( id, name )')
         .eq('team.club_id', clubId)
         .gte('game_date', today)
         .neq('status', 'cancelled')
@@ -586,7 +587,7 @@ window.GTWData = (function () {
       .select(`
         *,
         team:team_id (
-          id, name, age_group, gender, division,
+          id, name, age_group, gender, division, color,
           rule_mode, game_format_periods, game_format_minutes_per_period, rotation_block_minutes
         ),
         opposition:opposition_id ( id, name, primary_color )

@@ -56,7 +56,8 @@ Game Time Wizard/
 │   ├── migration_step6_5.sql ← Division on teams + age_group/division on opponents
 │   ├── migration_step6_6.sql ← Gender on teams
 │   ├── migration_step7_5.sql ← Bench duty: family-based → player-based
-│   └── migration_step8_5.sql ← Per-team sub block size + borrowed players
+│   ├── migration_step8_5.sql ← Per-team sub block size + borrowed players
+│   └── migration_step8_7.sql ← Team color (tile-based UI + visual identity)
 └── Prototype tools/
     ├── project_citipointe_basketball.md  ← Sister tool spec
     └── COURTSIDE_PROJECT_BRIEF.md        ← Sister tool spec (already-built PWA)
@@ -89,6 +90,7 @@ All staff can read everything in their own club.
 - [x] Schedule + Game Week shell (games CRUD + per-game workflow placeholders + post-game data entry)
 - [x] Bench Duty engine (pool, exclusions, fairness algorithm, Day-2 card on Game Week)
 - [x] Equal Opportunity Rotation engine (availability + algorithm + chart + print)
+- [x] Manual rotation editing — clickable cells, two-click swap, also covers senior teams ("Start empty plan" → build manually)
 - [ ] **Next: Comms templates** (3 messages per game)
 - [ ] Equal Opportunity Rotation engine
 - [ ] Comms templates (3 messages per game)
