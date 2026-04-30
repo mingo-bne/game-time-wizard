@@ -194,6 +194,68 @@ window.GTWData = (function () {
     return check(await sb().from('team_staff').delete().eq('id', teamStaffId));
   }
 
+  // ---------- GAMES ----------
+
+  async function listGames(teamId) {
+    return check(await sb()
+      .from('games')
+      .select('*, opposition:opposition_id ( id, name, primary_color )')
+      .eq('team_id', teamId)
+      .order('game_date', { ascending: true })
+      .order('game_time', { ascending: true, nullsFirst: false }));
+  }
+
+  async function listUpcomingGames(teamId) {
+    const today = new Date().toISOString().slice(0, 10);
+    return check(await sb()
+      .from('games')
+      .select('*, opposition:opposition_id ( id, name )')
+      .eq('team_id', teamId)
+      .gte('game_date', today)
+      .neq('status', 'cancelled')
+      .order('game_date', { ascending: true })
+      .order('game_time', { ascending: true, nullsFirst: false }));
+  }
+
+  async function getGame(gameId) {
+    return check(await sb()
+      .from('games')
+      .select('*, team:team_id ( id, name, game_format_periods, game_format_minutes_per_period ), opposition:opposition_id ( id, name, primary_color )')
+      .eq('id', gameId)
+      .single());
+  }
+
+  async function createGame(teamId, fields) {
+    return check(await sb().from('games').insert({
+      team_id: teamId,
+      opposition_id: fields.opposition_id || null,
+      game_date: fields.game_date,
+      game_time: fields.game_time || null,
+      venue: fields.venue || null,
+      court: fields.court || null,
+      periods: fields.periods ?? null,
+      minutes_per_period: fields.minutes_per_period ?? null,
+      status: fields.status || 'scheduled',
+      notes: fields.notes || null
+    }).select().single());
+  }
+
+  async function updateGame(gameId, fields) {
+    return check(await sb().from('games').update(fields).eq('id', gameId).select().single());
+  }
+
+  async function deleteGame(gameId) {
+    return check(await sb().from('games').delete().eq('id', gameId));
+  }
+
+  async function getGameWeekStatus(teamId) {
+    return check(await sb()
+      .from('game_week_status')
+      .select('*')
+      .eq('team_id', teamId)
+      .order('game_date', { ascending: true }));
+  }
+
   // ---------- TEAMS THE CURRENT USER CAN EDIT ----------
 
   async function listMyEditableTeams(clubId, currentStaff) {
@@ -462,6 +524,7 @@ window.GTWData = (function () {
     listStaff, createPendingStaff, updateStaff, removeStaff,
     listTeams, getTeam, createTeam, updateTeam, deleteTeam,
     listTeamStaff, assignStaffToTeam, updateTeamStaffRole, removeTeamStaff,
+    listGames, listUpcomingGames, getGame, createGame, updateGame, deleteGame, getGameWeekStatus,
     listMyEditableTeams,
     listFamilies, createFamily, updateFamily, deleteFamily,
     addFamilyContact, updateFamilyContact, removeFamilyContact,

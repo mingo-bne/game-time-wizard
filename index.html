@@ -1045,12 +1045,307 @@
               </div>
             </template>
 
-            <!-- ========== GAMES (stub) ========== -->
-            <template x-if="route === 'games'">
-              <div>
-                <h1 class="text-2xl font-bold mb-1">Games</h1>
-                <p class="text-sm text-slate-500 mb-6">Schedule + Game Week workflow — coming in step 6.</p>
-                <div class="bg-white border border-slate-200 rounded-xl p-8 text-center text-slate-400">Stub view</div>
+            <!-- ========== GAMES LIST ========== -->
+            <template x-if="route === 'games' && !subroute">
+              <div x-data="gamesView(currentClub, currentStaff, (r,s) => navigate(r,s))" x-init="init()">
+
+                <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
+                  <div>
+                    <h1 class="text-2xl font-bold">Games</h1>
+                    <p class="text-sm text-slate-500">Schedule per team. Click a game to open the Game Week workflow.</p>
+                  </div>
+                  <div class="flex gap-2 items-end">
+                    <div x-show="teams.length > 0">
+                      <label class="block text-xs font-medium text-slate-500 mb-1">Team</label>
+                      <select x-model="selectedTeamId" @change="onTeamChange()"
+                        class="border border-slate-300 rounded-lg px-3 py-2 text-sm">
+                        <template x-for="t in teams" :key="t.id">
+                          <option :value="t.id" x-text="t.name"></option>
+                        </template>
+                      </select>
+                    </div>
+                    <button x-show="canEdit() && selectedTeamId" @click="startNew()"
+                      class="bg-brand-600 hover:bg-brand-700 text-white text-sm rounded-lg px-4 py-2 font-medium">
+                      + New game
+                    </button>
+                  </div>
+                </div>
+
+                <p x-show="error" x-text="error" class="text-sm text-red-600 mb-3"></p>
+                <div x-show="loading" class="text-sm text-slate-500">Loading…</div>
+
+                <div x-show="!loading && teams.length === 0"
+                  class="bg-white border border-slate-200 rounded-xl p-8 text-center">
+                  <p class="text-slate-600 mb-2">No teams to manage.</p>
+                </div>
+
+                <template x-if="!loading && selectedTeamId">
+                  <div>
+                    <!-- Empty state -->
+                    <div x-show="games.length === 0 && !showForm"
+                      class="bg-white border border-slate-200 rounded-xl p-8 text-center text-slate-500">
+                      No games scheduled. Click "+ New game" to add one.
+                    </div>
+
+                    <!-- Games list -->
+                    <div x-show="games.length > 0" class="bg-white border border-slate-200 rounded-xl overflow-hidden">
+                      <table class="w-full text-sm">
+                        <thead class="bg-slate-50 text-xs uppercase text-slate-600">
+                          <tr>
+                            <th class="text-left p-3">Date</th>
+                            <th class="text-left p-3">Time</th>
+                            <th class="text-left p-3">Opposition</th>
+                            <th class="text-left p-3 hidden md:table-cell">Venue</th>
+                            <th class="text-left p-3 hidden md:table-cell">Format</th>
+                            <th class="text-left p-3">Status</th>
+                            <th class="text-right p-3"></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <template x-for="g in games" :key="g.id">
+                            <tr class="border-t border-slate-100 hover:bg-brand-50">
+                              <td class="p-3">
+                                <a href="#" @click.prevent="open(g)" class="text-brand-700 hover:underline" x-text="formatDate(g.game_date)"></a>
+                                <div class="text-[10px] text-slate-500" x-text="daysLabel(g.game_date)"></div>
+                              </td>
+                              <td class="p-3 text-slate-600" x-text="formatTime(g.game_time) || '—'"></td>
+                              <td class="p-3" x-text="g.opposition?.name || '—'"></td>
+                              <td class="p-3 text-slate-600 hidden md:table-cell" x-text="g.venue || '—'"></td>
+                              <td class="p-3 text-slate-600 hidden md:table-cell" x-text="formatLabel(g)"></td>
+                              <td class="p-3">
+                                <span :class="statusBadgeClass(g.status)" class="text-xs rounded px-2 py-0.5" x-text="g.status"></span>
+                                <template x-if="g.status === 'completed' && g.team_score !== null && g.opposition_score !== null">
+                                  <div class="text-xs text-slate-500 mt-1">
+                                    <span x-text="g.team_score"></span> – <span x-text="g.opposition_score"></span>
+                                  </div>
+                                </template>
+                              </td>
+                              <td class="p-3 text-right whitespace-nowrap">
+                                <button x-show="canEdit()" @click="startEdit(g)" class="text-xs text-brand-700 hover:underline mr-2">Edit</button>
+                                <button x-show="canEdit()" @click="deleteGame(g)" class="text-xs text-red-600 hover:underline">Delete</button>
+                              </td>
+                            </tr>
+                          </template>
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <!-- Game form -->
+                    <template x-if="showForm">
+                      <div class="mt-6 bg-white border border-slate-200 rounded-xl p-6">
+                        <h3 class="text-lg font-semibold mb-4" x-text="editingGameId ? 'Edit game' : 'New game'"></h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                          <div>
+                            <label class="block text-sm font-medium mb-1">Date *</label>
+                            <input type="date" x-model="form.game_date" required
+                              class="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                          </div>
+                          <div>
+                            <label class="block text-sm font-medium mb-1">Time</label>
+                            <input type="time" x-model="form.game_time"
+                              class="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                          </div>
+                          <div class="md:col-span-2">
+                            <label class="block text-sm font-medium mb-1">Opposition</label>
+                            <div class="flex gap-2">
+                              <select x-model="form.opposition_id"
+                                class="flex-1 border border-slate-300 rounded-lg px-3 py-2">
+                                <option value="">— Pick an opponent —</option>
+                                <template x-for="o in opponents" :key="o.id">
+                                  <option :value="o.id" x-text="o.name"></option>
+                                </template>
+                              </select>
+                              <button type="button" @click="showNewOpponent = !showNewOpponent"
+                                class="text-sm text-brand-600 hover:text-brand-700 px-3 py-2 border border-brand-200 rounded-lg">
+                                + New
+                              </button>
+                            </div>
+                            <template x-if="showNewOpponent">
+                              <div class="mt-2 flex gap-2">
+                                <input type="text" x-model="newOpponentName" placeholder="New opponent name"
+                                  class="flex-1 border border-slate-300 rounded px-3 py-2 text-sm" />
+                                <button type="button" @click="addOpponent()"
+                                  class="bg-brand-600 hover:bg-brand-700 text-white text-sm rounded px-3 py-2">Add</button>
+                                <button type="button" @click="showNewOpponent = false; newOpponentName = ''"
+                                  class="text-sm text-slate-600 px-3 py-2">Cancel</button>
+                              </div>
+                            </template>
+                          </div>
+                          <div>
+                            <label class="block text-sm font-medium mb-1">Venue</label>
+                            <input type="text" x-model="form.venue" placeholder="e.g. Auchenflower Stadium"
+                              class="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                          </div>
+                          <div>
+                            <label class="block text-sm font-medium mb-1">Court</label>
+                            <input type="text" x-model="form.court" placeholder="e.g. Court 2"
+                              class="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                          </div>
+                          <div>
+                            <label class="block text-sm font-medium mb-1">Periods (override team default)</label>
+                            <input type="number" min="1" max="8" x-model="form.periods"
+                              class="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                          </div>
+                          <div>
+                            <label class="block text-sm font-medium mb-1">Minutes per period</label>
+                            <input type="number" min="1" max="30" x-model="form.minutes_per_period"
+                              class="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                          </div>
+                          <div>
+                            <label class="block text-sm font-medium mb-1">Status</label>
+                            <select x-model="form.status" class="w-full border border-slate-300 rounded-lg px-3 py-2">
+                              <option value="scheduled">Scheduled</option>
+                              <option value="completed">Completed</option>
+                              <option value="cancelled">Cancelled</option>
+                              <option value="bye">Bye</option>
+                            </select>
+                          </div>
+                          <div class="md:col-span-2">
+                            <label class="block text-sm font-medium mb-1">Notes</label>
+                            <textarea x-model="form.notes" rows="2"
+                              class="w-full border border-slate-300 rounded-lg px-3 py-2"></textarea>
+                          </div>
+                        </div>
+                        <div class="flex gap-2">
+                          <button @click="saveGame()" :disabled="saving"
+                            class="bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm rounded-lg px-4 py-2 font-medium">
+                            <span x-text="saving ? 'Saving…' : (editingGameId ? 'Save changes' : 'Create game')"></span>
+                          </button>
+                          <button @click="cancelForm()" class="text-sm text-slate-600 px-4 py-2">Cancel</button>
+                        </div>
+                      </div>
+                    </template>
+                  </div>
+                </template>
+              </div>
+            </template>
+
+            <!-- ========== GAME WEEK (per game) ========== -->
+            <template x-if="route === 'games' && subroute">
+              <div x-data="gameWeekView(currentClub, currentStaff, subroute, (r,s) => navigate(r,s))" x-init="init()">
+                <div class="mb-4">
+                  <a href="#" @click.prevent="backToList()" class="text-sm text-brand-600 hover:underline">← Back to games</a>
+                </div>
+
+                <div x-show="loading" class="text-sm text-slate-500">Loading…</div>
+                <p x-show="error" x-text="error" class="text-sm text-red-600 mb-3"></p>
+
+                <template x-if="!loading && game">
+                  <div class="space-y-6">
+
+                    <!-- Game header -->
+                    <div class="bg-white border border-slate-200 rounded-xl p-6">
+                      <div class="flex items-start justify-between gap-4 mb-4">
+                        <div>
+                          <div class="text-sm text-slate-500 uppercase tracking-wider" x-text="game.team?.name"></div>
+                          <h1 class="text-2xl font-bold mt-1">vs <span x-text="game.opposition?.name || 'TBD'"></span></h1>
+                          <div class="text-sm text-slate-600 mt-1" x-text="formatDate(game.game_date)"></div>
+                        </div>
+                        <span :class="statusBadgeClass(game.status)" class="text-xs rounded px-3 py-1 font-medium" x-text="game.status"></span>
+                      </div>
+                      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                        <div>
+                          <div class="text-xs uppercase text-slate-500">Time</div>
+                          <div x-text="formatTime(game.game_time) || '—'"></div>
+                        </div>
+                        <div>
+                          <div class="text-xs uppercase text-slate-500">Venue</div>
+                          <div x-text="game.venue || '—'"></div>
+                        </div>
+                        <div>
+                          <div class="text-xs uppercase text-slate-500">Court</div>
+                          <div x-text="game.court || '—'"></div>
+                        </div>
+                        <div>
+                          <div class="text-xs uppercase text-slate-500">Format</div>
+                          <div x-text="formatLabel()"></div>
+                        </div>
+                      </div>
+                      <div class="mt-3 text-sm font-medium text-brand-600" x-text="daysLabel()"></div>
+                    </div>
+
+                    <!-- Workflow cards -->
+                    <div>
+                      <h2 class="text-lg font-semibold mb-3">Game week workflow</h2>
+                      <div class="space-y-3">
+                        <template x-for="step in workflowSteps()" :key="step.key">
+                          <div class="bg-white border rounded-xl p-5"
+                               :class="step.windowOpen ? 'border-brand-300 bg-brand-50/30' : 'border-slate-200'">
+                            <div class="flex items-start justify-between gap-3 mb-2">
+                              <div class="flex items-start gap-2">
+                                <span class="text-xl" x-text="step.icon"></span>
+                                <div>
+                                  <h3 class="font-semibold" x-text="step.label"></h3>
+                                  <div class="text-xs text-slate-600 mt-0.5" x-text="step.status"></div>
+                                </div>
+                              </div>
+                              <span x-show="step.windowOpen"
+                                class="text-[10px] uppercase tracking-wider bg-brand-600 text-white rounded px-2 py-0.5">Now</span>
+                            </div>
+                            <div class="mt-2 text-xs text-slate-500 italic" x-text="step.placeholder"></div>
+                          </div>
+                        </template>
+                      </div>
+                    </div>
+
+                    <!-- Post-game card -->
+                    <div class="bg-white border border-slate-200 rounded-xl p-5">
+                      <h3 class="font-semibold mb-3 flex items-center gap-2">
+                        <span class="text-xl">🎯</span>
+                        Post-game
+                      </h3>
+                      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div>
+                          <label class="block text-xs font-medium mb-1">Status</label>
+                          <select x-model="postGame.status" @change="onPostGameChange()"
+                            class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+                            <option value="scheduled">Scheduled</option>
+                            <option value="completed">Completed</option>
+                            <option value="cancelled">Cancelled</option>
+                            <option value="bye">Bye</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label class="block text-xs font-medium mb-1">Result</label>
+                          <select x-model="postGame.result" @change="postGameDirty = true"
+                            class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+                            <option value="">— Not recorded —</option>
+                            <option value="win">Win</option>
+                            <option value="loss">Loss</option>
+                            <option value="draw">Draw</option>
+                            <option value="no_result">No result</option>
+                            <option value="bye">Bye</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label class="block text-xs font-medium mb-1">Team score</label>
+                          <input type="number" min="0" x-model="postGame.team_score" @input="onPostGameChange()"
+                            class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+                        </div>
+                        <div>
+                          <label class="block text-xs font-medium mb-1" x-text="'Opposition score (' + (game.opposition?.name || 'TBD') + ')'"></label>
+                          <input type="number" min="0" x-model="postGame.opposition_score" @input="onPostGameChange()"
+                            class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+                        </div>
+                        <div class="md:col-span-2">
+                          <label class="block text-xs font-medium mb-1">Coach notes</label>
+                          <textarea x-model="postGame.notes" @input="postGameDirty = true" rows="3"
+                            class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                            placeholder="What worked, what didn't, what to focus on next session"></textarea>
+                        </div>
+                      </div>
+                      <div class="text-xs text-slate-500 mb-3 italic">
+                        Per-player attendance + coach notes per player will land alongside the rotation engine in step 8.
+                      </div>
+                      <div class="flex gap-2">
+                        <button @click="savePostGame()" :disabled="!postGameDirty || saving"
+                          class="bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm rounded-lg px-4 py-2 font-medium">
+                          <span x-text="saving ? 'Saving…' : 'Save post-game data'"></span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </template>
               </div>
             </template>
 
@@ -1187,5 +1482,7 @@
   <script src="js/views/team-detail.js"></script>
   <script src="js/views/roster.js"></script>
   <script src="js/views/ratings.js"></script>
+  <script src="js/views/games.js"></script>
+  <script src="js/views/game-week.js"></script>
 </body>
 </html>
