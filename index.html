@@ -1825,100 +1825,126 @@
                               </template>
                             </div>
 
-                            <!-- Rotation section (equal_opportunity) -->
-                            <template x-if="isEqualOpportunity()">
-                              <div class="mt-3">
-                                <div class="flex items-center justify-between mb-2">
-                                  <div>
-                                    <h4 class="text-sm font-semibold">Rotation plan</h4>
-                                    <p class="text-xs text-slate-500">
-                                      Equal-opportunity engine — every available player gets ~equal court time.
-                                      <template x-if="rotationPlan">
-                                        <span class="text-slate-700"> · Generated <span x-text="new Date(rotationPlan.generated_at).toLocaleString('en-AU')"></span></span>
-                                      </template>
-                                    </p>
-                                  </div>
-                                  <div class="flex gap-2 no-print">
-                                    <template x-if="rotationPlan">
-                                      <button @click="toggleRotationLock()"
-                                        :class="rotationPlan.is_locked ? 'text-amber-600' : 'text-slate-500 hover:text-amber-500'"
-                                        class="text-sm px-2"
-                                        :title="rotationPlan.is_locked ? 'Unlock' : 'Lock'">
-                                        <span x-text="rotationPlan.is_locked ? '🔒' : '🔓'"></span>
-                                      </button>
+                            <!-- Rotation section -->
+                            <div class="mt-3">
+                              <div class="flex items-center justify-between mb-2">
+                                <div>
+                                  <h4 class="text-sm font-semibold">Rotation plan</h4>
+                                  <p class="text-xs text-slate-500">
+                                    <template x-if="isEqualOpportunity()">
+                                      <span>Equal-opportunity engine — every available player gets ~equal court time.</span>
                                     </template>
+                                    <template x-if="!isEqualOpportunity()">
+                                      <span>Manual mode (no algorithm) — build the plan from scratch by tapping cells.</span>
+                                    </template>
+                                    <template x-if="rotationPlan">
+                                      <span class="text-slate-700"> · Last updated <span x-text="new Date(rotationPlan.generated_at).toLocaleString('en-AU')"></span></span>
+                                    </template>
+                                  </p>
+                                </div>
+                                <div class="flex gap-2 no-print">
+                                  <template x-if="rotationPlan">
+                                    <button @click="toggleRotationLock()"
+                                      :class="rotationPlan.is_locked ? 'text-amber-600' : 'text-slate-500 hover:text-amber-500'"
+                                      class="text-sm px-2"
+                                      :title="rotationPlan.is_locked ? 'Unlock' : 'Lock to protect from regenerate'">
+                                      <span x-text="rotationPlan.is_locked ? '🔒' : '🔓'"></span>
+                                    </button>
+                                  </template>
+                                  <template x-if="isEqualOpportunity()">
                                     <button @click="generateRotationNow()" :disabled="generatingRotation"
                                       class="bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm rounded px-3 py-1.5 font-medium">
                                       <span x-text="generatingRotation ? 'Generating…' : (rotationPlan ? 'Regenerate' : 'Generate')"></span>
                                     </button>
-                                    <template x-if="rotationPlan">
-                                      <button @click="printRotation()"
-                                        class="text-sm text-brand-600 hover:underline px-2">🖨️ Print</button>
-                                    </template>
-                                    <template x-if="rotationPlan">
-                                      <button @click="clearRotation()"
-                                        class="text-sm text-red-600 hover:underline px-2">Clear</button>
-                                    </template>
-                                  </div>
+                                  </template>
+                                  <template x-if="!isEqualOpportunity() && !rotationPlan">
+                                    <button @click="startEmptyPlan()"
+                                      class="bg-brand-600 hover:bg-brand-700 text-white text-sm rounded px-3 py-1.5 font-medium">
+                                      Start empty plan
+                                    </button>
+                                  </template>
+                                  <template x-if="rotationPlan">
+                                    <button @click="printRotation()"
+                                      class="text-sm text-brand-600 hover:underline px-2">🖨️ Print</button>
+                                  </template>
+                                  <template x-if="rotationPlan">
+                                    <button @click="clearRotation()"
+                                      class="text-sm text-red-600 hover:underline px-2">Clear</button>
+                                  </template>
                                 </div>
+                              </div>
 
-                                <!-- Empty state -->
-                                <template x-if="!rotationPlan">
-                                  <div class="text-xs text-slate-500 italic p-3 bg-slate-50 rounded">
-                                    No plan generated yet. Confirm at least 5 players as Available, then click Generate.
-                                  </div>
-                                </template>
+                              <!-- Selected swap banner -->
+                              <template x-if="selectedSwap">
+                                <div class="mb-2 px-3 py-2 bg-yellow-100 border border-yellow-300 rounded text-xs flex items-center justify-between">
+                                  <span>🔄 Selected for swap. Tap an off-court cell in the same column to swap them in. Or tap the same cell to cancel.</span>
+                                  <button @click="cancelSwap()" class="text-yellow-900 hover:underline ml-2">Cancel</button>
+                                </div>
+                              </template>
 
-                                <!-- Rotation chart matrix -->
-                                <template x-if="rotationPlan && rotationMatrix()">
-                                  <div class="mt-2">
-                                    <div class="overflow-x-auto border border-slate-200 rounded-lg bg-white">
-                                      <table class="text-xs w-full">
-                                        <thead class="bg-slate-50">
-                                          <tr>
-                                            <th class="text-left p-2 sticky left-0 bg-slate-50 z-10 border-r border-slate-200">Player</th>
-                                            <template x-for="col in rotationMatrix().columnHeaders" :key="col.label">
-                                              <th class="text-center p-2 whitespace-nowrap border-r border-slate-100">
-                                                <div class="text-[10px] text-slate-500">Q<span x-text="col.period"></span></div>
-                                                <div class="font-mono text-[10px]" x-text="col.from + '-' + col.to"></div>
-                                              </th>
-                                            </template>
-                                            <th class="text-right p-2 sticky right-0 bg-slate-50 z-10 border-l border-slate-200">Min</th>
-                                          </tr>
-                                        </thead>
-                                        <tbody>
-                                          <template x-for="row in rotationMatrix().rows" :key="row.player_id">
-                                            <tr class="border-t border-slate-100">
-                                              <td class="p-2 sticky left-0 bg-white border-r border-slate-200 whitespace-nowrap">
-                                                <span class="font-mono text-slate-500 mr-1" x-text="row.jersey_no ?? ''"></span>
-                                                <span class="font-medium" x-text="row.full_name"></span>
-                                              </td>
-                                              <template x-for="(onCourt, i) in row.blocks" :key="i">
-                                                <td class="text-center p-2 border-r border-slate-100"
-                                                  :class="onCourt ? 'bg-brand-100 text-brand-700 font-semibold' : 'text-slate-300'">
-                                                  <span x-text="onCourt ? '●' : '·'"></span>
-                                                </td>
-                                              </template>
-                                              <td class="text-right p-2 sticky right-0 bg-white border-l border-slate-200 font-mono font-semibold" x-text="row.total_minutes"></td>
-                                            </tr>
+                              <!-- Empty state -->
+                              <template x-if="!rotationPlan && isEqualOpportunity()">
+                                <div class="text-xs text-slate-500 italic p-3 bg-slate-50 rounded">
+                                  No plan yet. Confirm at least 5 players as Available, then click Generate.
+                                </div>
+                              </template>
+                              <template x-if="!rotationPlan && !isEqualOpportunity()">
+                                <div class="text-xs text-slate-500 italic p-3 bg-slate-50 rounded">
+                                  No plan yet. Click "Start empty plan" then tap cells to add players to each block (up to 5 per block).
+                                </div>
+                              </template>
+
+                              <!-- Rotation chart matrix (interactive) -->
+                              <template x-if="rotationPlan && rotationMatrix()">
+                                <div class="mt-2">
+                                  <div class="overflow-x-auto border border-slate-200 rounded-lg bg-white">
+                                    <table class="text-xs w-full">
+                                      <thead class="bg-slate-50">
+                                        <tr>
+                                          <th class="text-left p-2 sticky left-0 bg-slate-50 z-10 border-r border-slate-200">Player</th>
+                                          <template x-for="col in rotationMatrix().columnHeaders" :key="col.label">
+                                            <th class="text-center p-2 whitespace-nowrap border-r border-slate-100">
+                                              <div class="text-[10px] text-slate-500">Q<span x-text="col.period"></span></div>
+                                              <div class="font-mono text-[10px]" x-text="col.from + '-' + col.to"></div>
+                                            </th>
                                           </template>
-                                        </tbody>
-                                      </table>
-                                    </div>
-                                    <p class="text-[10px] text-slate-500 mt-1 italic">
-                                      ● = on court · Each column is a substitution block. Print this for the bench.
-                                    </p>
+                                          <th class="text-right p-2 sticky right-0 bg-slate-50 z-10 border-l border-slate-200">Min</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        <template x-for="row in rotationMatrix().rows" :key="row.player_id">
+                                          <tr class="border-t border-slate-100">
+                                            <td class="p-2 sticky left-0 bg-white border-r border-slate-200 whitespace-nowrap">
+                                              <span class="font-mono text-slate-500 mr-1" x-text="row.jersey_no ?? ''"></span>
+                                              <span class="font-medium" x-text="row.full_name"></span>
+                                            </td>
+                                            <template x-for="(onCourt, i) in row.blocks" :key="i">
+                                              <td
+                                                @click="clickCell(i, row.player_id, onCourt)"
+                                                :class="{
+                                                  'cursor-pointer hover:ring-2 hover:ring-brand-300': canEdit(),
+                                                  'bg-yellow-200 text-yellow-900 ring-2 ring-yellow-500': isCellSelected(i, row.player_id),
+                                                  'bg-brand-100 text-brand-700 font-semibold': onCourt && !isCellSelected(i, row.player_id),
+                                                  'bg-green-50 hover:bg-green-100 text-green-600': !onCourt && isSwapTargetColumn(i),
+                                                  'text-slate-300': !onCourt && !isSwapTargetColumn(i)
+                                                }"
+                                                class="text-center p-2 border-r border-slate-100">
+                                                <span x-text="onCourt ? '●' : (isSwapTargetColumn(i) ? '+' : '·')"></span>
+                                              </td>
+                                            </template>
+                                            <td class="text-right p-2 sticky right-0 bg-white border-l border-slate-200 font-mono font-semibold" x-text="row.total_minutes"></td>
+                                          </tr>
+                                        </template>
+                                      </tbody>
+                                    </table>
                                   </div>
-                                </template>
-                              </div>
-                            </template>
-
-                            <!-- Senior team (no_engine) placeholder -->
-                            <template x-if="!isEqualOpportunity()">
-                              <div class="mt-3 p-3 bg-amber-50 border border-amber-200 rounded text-xs text-amber-800 italic">
-                                This team is set to "No engine" rule mode. Manual rotation scratch pad lands in step 10.
-                              </div>
-                            </template>
+                                  <p class="text-[10px] text-slate-500 mt-1 italic no-print">
+                                    ● on court · + tap to add (block has space) · tap ● to mark for swap, then tap + in same column to swap them in.
+                                    Per ADR-019, manual edits are saved immediately. Lock 🔒 to protect from regenerate.
+                                  </p>
+                                </div>
+                              </template>
+                            </div>
                           </div>
                         </template>
                       </div>
