@@ -29,6 +29,7 @@ function teamDetailView(currentClub, currentStaff, teamId, onNavigate) {
       this.teamForm = {
         name: this.team.name,
         age_group: this.team.age_group || '',
+        gender: this.team.gender || '',
         division: this.team.division || '',
         rule_mode: this.team.rule_mode,
         game_format_periods: this.team.game_format_periods,
@@ -55,6 +56,7 @@ function teamDetailView(currentClub, currentStaff, teamId, onNavigate) {
         await window.GTWData.updateTeam(teamId, {
           name: this.teamForm.name.trim(),
           age_group: this.teamForm.age_group.trim() || null,
+          gender: this.teamForm.gender || null,
           division: this.teamForm.division.trim() || null,
           rule_mode: this.teamForm.rule_mode,
           game_format_periods: parseInt(this.teamForm.game_format_periods, 10),
@@ -125,6 +127,10 @@ function teamDetailView(currentClub, currentStaff, teamId, onNavigate) {
         assistant_coach: 'Assistant Coach',
         team_manager:    'Team Manager'
       }[role] || role;
+    },
+
+    genderLabel(g) {
+      return { M: 'Boys', F: 'Girls', X: 'Mixed', NA: 'Open' }[g] || '—';
     }
   };
 }

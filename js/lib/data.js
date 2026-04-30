@@ -103,6 +103,7 @@ window.GTWData = (function () {
       season_id: seasonId,
       name: fields.name,
       age_group: fields.age_group || null,
+      gender:    fields.gender    || null,
       division:  fields.division  || null,
       rule_mode: fields.rule_mode || 'equal_opportunity',
       game_format_periods: fields.game_format_periods || 2,
@@ -193,6 +194,37 @@ window.GTWData = (function () {
 
   async function removeTeamStaff(teamStaffId) {
     return check(await sb().from('team_staff').delete().eq('id', teamStaffId));
+  }
+
+  // ---------- DASHBOARD SUMMARY ----------
+
+  async function getDashboardSummary(clubId) {
+    // Fire all the lightweight count queries in parallel.
+    const today = new Date().toISOString().slice(0, 10);
+    const [teams, players, staff, games, upcoming] = await Promise.all([
+      sb().from('teams').select('id', { count: 'exact', head: true }).eq('club_id', clubId),
+      sb().from('players').select('id', { count: 'exact', head: true }).eq('club_id', clubId),
+      sb().from('staff').select('id', { count: 'exact', head: true }).eq('club_id', clubId),
+      sb().from('games').select(`id, team:team_id!inner(id, club_id)`, { count: 'exact', head: true })
+        .eq('team.club_id', clubId)
+        .gte('game_date', today)
+        .neq('status', 'cancelled'),
+      sb().from('games')
+        .select('*, team:team_id ( id, name, club_id ), opposition:opposition_id ( id, name )')
+        .eq('team.club_id', clubId)
+        .gte('game_date', today)
+        .neq('status', 'cancelled')
+        .order('game_date', { ascending: true })
+        .order('game_time', { ascending: true, nullsFirst: false })
+        .limit(5)
+    ]);
+    return {
+      teams_count:    teams.count ?? 0,
+      players_count:  players.count ?? 0,
+      staff_count:    staff.count ?? 0,
+      games_count:    games.count ?? 0,
+      upcoming_games: upcoming.data || []
+    };
   }
 
   // ---------- GAMES ----------
@@ -528,6 +560,7 @@ window.GTWData = (function () {
     listTeams, getTeam, createTeam, updateTeam, deleteTeam,
     listTeamStaff, assignStaffToTeam, updateTeamStaffRole, removeTeamStaff,
     listGames, listUpcomingGames, getGame, createGame, updateGame, deleteGame, getGameWeekStatus,
+    getDashboardSummary,
     listMyEditableTeams,
     listFamilies, createFamily, updateFamily, deleteFamily,
     addFamilyContact, updateFamilyContact, removeFamilyContact,
