@@ -1,7 +1,10 @@
 // =====================================================================
 // Roster view — Players (team memberships) + Families (club-level)
 // =====================================================================
-const POSITION_OPTIONS = ['PG', 'SG', 'SF', 'PF', 'C'];
+// Simplified positions for junior basketball — coach thinks in G/F/C, not pro basketball's PG/SG/SF/PF/C.
+// Labels in the picker include the full word for clarity.
+const POSITION_OPTIONS = ['G', 'F', 'C'];
+const POSITION_LABELS = { G: 'Guard', F: 'Forward', C: 'Center' };
 const RELATIONSHIP_OPTIONS = ['Mother', 'Father', 'Guardian', 'Step-parent', 'Other'];
 
 function rosterView(currentClub, currentStaff) {
@@ -35,6 +38,7 @@ function rosterView(currentClub, currentStaff) {
     contactForm: emptyContactForm(),
 
     POSITION_OPTIONS,
+    POSITION_LABELS,
     RELATIONSHIP_OPTIONS,
 
     async init() {

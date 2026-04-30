@@ -376,7 +376,7 @@ function gameWeekView(currentClub, currentStaff, gameId, onNavigate) {
         const pos = p.positions[0];   // primary position
         counts[pos] = (counts[pos] || 0) + 1;
       }
-      const order = ['PG', 'SG', 'SF', 'PF', 'C', '?'];
+      const order = ['G', 'F', 'C', '?'];
       return order
         .filter(pos => counts[pos])
         .map(pos => counts[pos] > 1 ? `${counts[pos]}${pos}` : pos)

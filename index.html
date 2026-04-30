@@ -957,12 +957,12 @@
                                   <label class="block text-sm font-medium mb-1">Positions</label>
                                   <div class="flex flex-wrap gap-2">
                                     <template x-for="pos in POSITION_OPTIONS" :key="pos">
-                                      <label
+                                      <label :title="POSITION_LABELS[pos]"
                                         :class="newPlayerForm.positions.includes(pos) ? 'bg-brand-100 text-brand-700 border-brand-400' : 'bg-white text-slate-600 border-slate-300'"
                                         class="border rounded-lg px-3 py-1.5 text-sm cursor-pointer">
                                         <input type="checkbox" :checked="newPlayerForm.positions.includes(pos)"
                                           @change="togglePosition(newPlayerForm, pos)" class="hidden" />
-                                        <span x-text="pos"></span>
+                                        <span x-text="pos + ' · ' + POSITION_LABELS[pos]"></span>
                                       </label>
                                     </template>
                                   </div>
@@ -1009,12 +1009,12 @@
                                 <label class="block text-sm font-medium mb-1">Positions on this team</label>
                                 <div class="flex flex-wrap gap-2">
                                   <template x-for="pos in POSITION_OPTIONS" :key="pos">
-                                    <label
+                                    <label :title="POSITION_LABELS[pos]"
                                       :class="existingPlayerForm.positions.includes(pos) ? 'bg-brand-100 text-brand-700 border-brand-400' : 'bg-white text-slate-600 border-slate-300'"
                                       class="border rounded-lg px-3 py-1.5 text-sm cursor-pointer">
                                       <input type="checkbox" :checked="existingPlayerForm.positions.includes(pos)"
                                         @change="togglePosition(existingPlayerForm, pos)" class="hidden" />
-                                      <span x-text="pos"></span>
+                                      <span x-text="pos + ' · ' + POSITION_LABELS[pos]"></span>
                                     </label>
                                   </template>
                                 </div>
@@ -1077,12 +1077,12 @@
                                   <label class="block text-sm font-medium mb-1">Positions</label>
                                   <div class="flex flex-wrap gap-2">
                                     <template x-for="pos in POSITION_OPTIONS" :key="pos">
-                                      <label
+                                      <label :title="POSITION_LABELS[pos]"
                                         :class="editForm.positions.includes(pos) ? 'bg-brand-100 text-brand-700 border-brand-400' : 'bg-white text-slate-600 border-slate-300'"
                                         class="border rounded-lg px-3 py-1.5 text-sm cursor-pointer">
                                         <input type="checkbox" :checked="editForm.positions.includes(pos)"
                                           @change="togglePosition(editForm, pos)" class="hidden" />
-                                        <span x-text="pos"></span>
+                                        <span x-text="pos + ' · ' + POSITION_LABELS[pos]"></span>
                                       </label>
                                     </template>
                                   </div>

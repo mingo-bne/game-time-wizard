@@ -57,7 +57,8 @@ Game Time Wizard/
 │   ├── migration_step6_6.sql ← Gender on teams
 │   ├── migration_step7_5.sql ← Bench duty: family-based → player-based
 │   ├── migration_step8_5.sql ← Per-team sub block size + borrowed players
-│   └── migration_step8_7.sql ← Team color (tile-based UI + visual identity)
+│   ├── migration_step8_7.sql ← Team color (tile-based UI + visual identity)
+│   └── migration_step8_8.sql ← Simplify positions to G/F/C (was PG/SG/SF/PF/C)
 └── Prototype tools/
     ├── project_citipointe_basketball.md  ← Sister tool spec
     └── COURTSIDE_PROJECT_BRIEF.md        ← Sister tool spec (already-built PWA)

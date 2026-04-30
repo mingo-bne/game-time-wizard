@@ -92,6 +92,7 @@ GitHub Pages                             │  rotation_plans, comm_templates,  �
 | 8.5 | Per-team sub block size + borrowed players (priority weight reduces share) | ✅ Done |
 | 8.6 | Manual rotation editing — also covers senior "scratch pad" use case (ADR-020) | ✅ Done |
 | 8.7 | Tile-based Teams view + per-team color (used for tiles, headers, dashboard chips) | ✅ Done |
+| 8.8 | Simplify positions to G/F/C (was PG/SG/SF/PF/C) — junior coach speak | ✅ Done |
 | 9 | Comms templates (3 messages per game) | ⏳ Next |
 | 10 | ~~Senior scratch pad~~ — superseded by step 8.6, deleted from build sequence | — |
 | 9 | Comms templates (3 messages per game) | Pending |
