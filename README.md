@@ -35,19 +35,28 @@ Game Time Wizard/
 ├── js/
 │   ├── app.js               ← Root Alpine component (auth, routing)
 │   ├── lib/
-│   │   └── data.js          ← All Supabase queries
+│   │   ├── data.js          ← All Supabase queries
+│   │   └── rotation.js      ← Equal Opportunity rotation algorithm (pure)
 │   └── views/
+│       ├── dashboard.js     ← Club summary + upcoming games
 │       ├── settings.js      ← Club + Staff management
 │       ├── teams.js         ← Teams list + create
 │       ├── team-detail.js   ← Team settings + staff assignments
-│       └── roster.js        ← Players + Families (per team)
+│       ├── roster.js        ← Players + Families (per team)
+│       ├── ratings.js       ← Per-team player ratings (11 sub-skills)
+│       ├── games.js         ← Games list + create/edit per team
+│       └── game-week.js     ← Per-game workflow shell
 ├── db/
 │   ├── schema.sql           ← Canonical Postgres schema (fresh deploy)
 │   ├── rls.sql              ← Row-Level Security policies
 │   ├── seed.sql             ← Default comm templates
 │   ├── migration_step3.sql  ← Pending-staff + auto-attach trigger
 │   ├── migration_step4_5.sql ← Restructure: club-level players + memberships
-│   └── migration_step4_6.sql ← Cross-tool foundation: seasons, opponents, plays, prefs
+│   ├── migration_step4_6.sql ← Cross-tool foundation: seasons, opponents, plays, prefs
+│   ├── migration_step6_5.sql ← Division on teams + age_group/division on opponents
+│   ├── migration_step6_6.sql ← Gender on teams
+│   ├── migration_step7_5.sql ← Bench duty: family-based → player-based
+│   └── migration_step8_5.sql ← Per-team sub block size + borrowed players
 └── Prototype tools/
     ├── project_citipointe_basketball.md  ← Sister tool spec
     └── COURTSIDE_PROJECT_BRIEF.md        ← Sister tool spec (already-built PWA)
@@ -76,9 +85,11 @@ All staff can read everything in their own club.
 - [x] Roster module (Players + Families + Contacts)
 - [x] Restructure: club-level players + per-team memberships, team-specific ratings
 - [x] Cross-tool data foundation (seasons, opponents, plays, player_preferences, game scores)
-- [ ] **Next: Ratings module** (11 sub-skills, per team)
-- [ ] Schedule + Game Week shell
-- [ ] Bench Duty engine
+- [x] Ratings module (11 sub-skills, per team)
+- [x] Schedule + Game Week shell (games CRUD + per-game workflow placeholders + post-game data entry)
+- [x] Bench Duty engine (pool, exclusions, fairness algorithm, Day-2 card on Game Week)
+- [x] Equal Opportunity Rotation engine (availability + algorithm + chart + print)
+- [ ] **Next: Comms templates** (3 messages per game)
 - [ ] Equal Opportunity Rotation engine
 - [ ] Comms templates (3 messages per game)
 - [ ] Senior scratch pad

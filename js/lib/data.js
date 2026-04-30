@@ -107,7 +107,8 @@ window.GTWData = (function () {
       division:  fields.division  || null,
       rule_mode: fields.rule_mode || 'equal_opportunity',
       game_format_periods: fields.game_format_periods || 2,
-      game_format_minutes_per_period: fields.game_format_minutes_per_period || 20
+      game_format_minutes_per_period: fields.game_format_minutes_per_period || 20,
+      rotation_block_minutes: fields.rotation_block_minutes || 2
     }).select().single());
   }
 
@@ -194,6 +195,122 @@ window.GTWData = (function () {
 
   async function removeTeamStaff(teamStaffId) {
     return check(await sb().from('team_staff').delete().eq('id', teamStaffId));
+  }
+
+  // ---------- AVAILABILITIES (per game per player) ----------
+
+  async function listAvailabilities(gameId) {
+    return check(await sb()
+      .from('availabilities')
+      .select('*')
+      .eq('game_id', gameId));
+  }
+
+  async function upsertAvailability(gameId, playerId, status) {
+    return check(await sb().from('availabilities').upsert({
+      game_id: gameId,
+      player_id: playerId,
+      status: status,
+      confirmed_at: new Date().toISOString()
+    }, { onConflict: 'game_id,player_id' }).select().single());
+  }
+
+  async function clearAvailability(gameId, playerId) {
+    return check(await sb()
+      .from('availabilities')
+      .delete()
+      .eq('game_id', gameId)
+      .eq('player_id', playerId));
+  }
+
+  // ---------- BORROWED PLAYERS (per game) ----------
+
+  async function listBorrowedPlayers(gameId) {
+    return check(await sb()
+      .from('game_borrowed_players')
+      .select('*, player:player_id ( id, full_name, dob, family:family_id ( family_name ) )')
+      .eq('game_id', gameId));
+  }
+
+  async function addBorrowedPlayer(gameId, playerId, priorityWeight = 0.5, notes) {
+    return check(await sb().from('game_borrowed_players').insert({
+      game_id: gameId,
+      player_id: playerId,
+      priority_weight: priorityWeight,
+      notes: notes || null
+    }).select().single());
+  }
+
+  async function updateBorrowedPlayer(borrowId, fields) {
+    return check(await sb()
+      .from('game_borrowed_players')
+      .update(fields)
+      .eq('id', borrowId)
+      .select().single());
+  }
+
+  async function removeBorrowedPlayer(borrowId) {
+    return check(await sb()
+      .from('game_borrowed_players')
+      .delete()
+      .eq('id', borrowId));
+  }
+
+  // Players in the club NOT on this team's roster — candidates to borrow
+  async function listBorrowCandidates(clubId, teamId) {
+    // Get players on this team
+    const { data: memberships, error: mErr } = await sb()
+      .from('team_memberships')
+      .select('player_id')
+      .eq('team_id', teamId);
+    if (mErr) throw new Error(mErr.message);
+    const onTeamIds = new Set((memberships || []).map(m => m.player_id));
+
+    // Get all club players
+    const { data: all, error: aErr } = await sb()
+      .from('players')
+      .select('id, full_name, dob, family:family_id ( family_name )')
+      .eq('club_id', clubId)
+      .eq('is_active_in_club', true)
+      .order('full_name');
+    if (aErr) throw new Error(aErr.message);
+    return (all || []).filter(p => !onTeamIds.has(p.id));
+  }
+
+  // ---------- ROTATION PLANS ----------
+
+  async function getRotationPlan(gameId) {
+    const { data, error } = await sb()
+      .from('rotation_plans')
+      .select('*')
+      .eq('game_id', gameId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data;
+  }
+
+  async function saveRotationPlan(gameId, plan, isLocked) {
+    return check(await sb().from('rotation_plans').upsert({
+      game_id: gameId,
+      plan: plan,
+      generated_at: new Date().toISOString(),
+      is_locked: isLocked ?? false
+    }, { onConflict: 'game_id' }).select().single());
+  }
+
+  async function setRotationLock(planId, isLocked) {
+    return check(await sb()
+      .from('rotation_plans')
+      .update({ is_locked: !!isLocked })
+      .eq('id', planId)
+      .select().single());
+  }
+
+  async function deleteRotationPlan(gameId) {
+    return check(await sb()
+      .from('rotation_plans')
+      .delete()
+      .eq('game_id', gameId));
   }
 
   // ---------- BENCH DUTY (player-based) ----------
@@ -777,6 +894,9 @@ window.GTWData = (function () {
     listDutyPool, setDutyEligibility, createDutyExclusion, removeDutyExclusion,
     listDutyAssignments, upsertDutyAssignment, setDutyAssignmentLock, removeDutyAssignment,
     generateDutyRoster,
+    listAvailabilities, upsertAvailability, clearAvailability,
+    listBorrowedPlayers, addBorrowedPlayer, updateBorrowedPlayer, removeBorrowedPlayer, listBorrowCandidates,
+    getRotationPlan, saveRotationPlan, setRotationLock, deleteRotationPlan,
     listMyEditableTeams,
     listFamilies, createFamily, updateFamily, deleteFamily,
     addFamilyContact, updateFamilyContact, removeFamilyContact,

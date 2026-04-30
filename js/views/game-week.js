@@ -17,6 +17,19 @@ function gameWeekView(currentClub, currentStaff, gameId, onNavigate) {
     showDutyReassign: false,
     selectedDutyPlayer: '',
 
+    // Availability + rotation
+    roster: [],                       // team_memberships joined with player
+    borrowedPlayers: [],              // game_borrowed_players for this game
+    availabilities: [],               // existing availability rows
+    rotationPlan: null,               // rotation_plans row (or null)
+    generatingRotation: false,
+    showAvailability: false,
+    showBorrowPicker: false,
+    borrowCandidates: [],
+    borrowSearch: '',
+    selectedBorrowPlayer: '',
+    borrowWeight: 0.5,
+
     // Post-game form state
     postGame: {
       team_score: '',
@@ -30,11 +43,90 @@ function gameWeekView(currentClub, currentStaff, gameId, onNavigate) {
     async init() {
       try {
         await this.loadGame();
-        await this.loadDuty();
+        await Promise.all([
+          this.loadDuty(),
+          this.loadAvailabilityAndRotation()
+        ]);
       } catch (err) {
         this.error = err.message;
       } finally {
         this.loading = false;
+      }
+    },
+
+    async loadAvailabilityAndRotation() {
+      if (!this.game?.team?.id) return;
+      const [roster, borrowed, avail, plan] = await Promise.all([
+        window.GTWData.listTeamRoster(this.game.team.id),
+        window.GTWData.listBorrowedPlayers(gameId),
+        window.GTWData.listAvailabilities(gameId),
+        window.GTWData.getRotationPlan(gameId)
+      ]);
+      this.roster = roster;
+      this.borrowedPlayers = borrowed;
+      this.availabilities = avail;
+      this.rotationPlan = plan;
+    },
+
+    // ============ BORROWED PLAYERS ============
+
+    async openBorrowPicker() {
+      try {
+        this.borrowCandidates = await window.GTWData.listBorrowCandidates(currentClub.id, this.game.team.id);
+        // Exclude players already borrowed for this game
+        const alreadyIds = new Set(this.borrowedPlayers.map(b => b.player_id));
+        this.borrowCandidates = this.borrowCandidates.filter(p => !alreadyIds.has(p.id));
+        this.selectedBorrowPlayer = '';
+        this.borrowWeight = 0.5;
+        this.borrowSearch = '';
+        this.showBorrowPicker = true;
+      } catch (err) {
+        this.error = err.message;
+      }
+    },
+
+    filteredBorrowCandidates() {
+      const q = this.borrowSearch.trim().toLowerCase();
+      if (!q) return this.borrowCandidates;
+      return this.borrowCandidates.filter(p =>
+        p.full_name.toLowerCase().includes(q) ||
+        (p.family?.family_name || '').toLowerCase().includes(q));
+    },
+
+    cancelBorrowPicker() {
+      this.showBorrowPicker = false;
+      this.selectedBorrowPlayer = '';
+      this.borrowSearch = '';
+    },
+
+    async addBorrow() {
+      if (!this.selectedBorrowPlayer) return;
+      try {
+        await window.GTWData.addBorrowedPlayer(gameId, this.selectedBorrowPlayer, parseFloat(this.borrowWeight) || 0.5);
+        this.cancelBorrowPicker();
+        await this.loadAvailabilityAndRotation();
+      } catch (err) {
+        this.error = err.message;
+      }
+    },
+
+    async updateBorrowWeight(borrow, weight) {
+      try {
+        const w = Math.max(0.1, Math.min(1.0, parseFloat(weight) || 0.5));
+        await window.GTWData.updateBorrowedPlayer(borrow.id, { priority_weight: w });
+        await this.loadAvailabilityAndRotation();
+      } catch (err) {
+        this.error = err.message;
+      }
+    },
+
+    async removeBorrow(borrowId, playerName) {
+      if (!confirm(`Remove ${playerName} as borrowed player for this game?`)) return;
+      try {
+        await window.GTWData.removeBorrowedPlayer(borrowId);
+        await this.loadAvailabilityAndRotation();
+      } catch (err) {
+        this.error = err.message;
       }
     },
 
@@ -110,6 +202,163 @@ function gameWeekView(currentClub, currentStaff, gameId, onNavigate) {
       } catch (err) {
         this.error = err.message;
       }
+    },
+
+    // ============ AVAILABILITY ============
+
+    availabilityFor(playerId) {
+      return this.availabilities.find(a => a.player_id === playerId)?.status || null;
+    },
+
+    availabilityCount(status) {
+      return this.availabilities.filter(a => a.status === status).length;
+    },
+
+    // Combined list: regulars (from roster, active only) + borrowed
+    // Each entry: { player_id, full_name, jersey_no, is_borrowed, priority_weight, borrow_id (if borrowed) }
+    allEligiblePlayers() {
+      const regulars = this.roster
+        .filter(m => m.is_active && m.player)
+        .map(m => ({
+          player_id: m.player.id,
+          full_name: m.player.full_name,
+          jersey_no: m.jersey_no,
+          family_name: m.player.family?.family_name || null,
+          is_borrowed: false,
+          priority_weight: 1.0,
+          borrow_id: null
+        }));
+      const borrowed = this.borrowedPlayers.map(b => ({
+        player_id: b.player.id,
+        full_name: b.player.full_name,
+        jersey_no: null,                    // borrowed players don't have a jersey on this team
+        family_name: b.player.family?.family_name || null,
+        is_borrowed: true,
+        priority_weight: parseFloat(b.priority_weight),
+        borrow_id: b.id
+      }));
+      return [...regulars, ...borrowed];
+    },
+
+    unconfirmedCount() {
+      const confirmedIds = new Set(this.availabilities.map(a => a.player_id));
+      return this.allEligiblePlayers().filter(p => !confirmedIds.has(p.player_id)).length;
+    },
+
+    async setAvailability(playerId, status) {
+      try {
+        if (status === '') {
+          await window.GTWData.clearAvailability(gameId, playerId);
+        } else {
+          await window.GTWData.upsertAvailability(gameId, playerId, status);
+        }
+        this.availabilities = await window.GTWData.listAvailabilities(gameId);
+      } catch (err) {
+        this.error = err.message;
+      }
+    },
+
+    async markAllAvailable() {
+      if (!confirm('Default all unconfirmed players (including borrowed) to "Available"?')) return;
+      try {
+        const confirmedIds = new Set(this.availabilities.map(a => a.player_id));
+        for (const p of this.allEligiblePlayers()) {
+          if (!confirmedIds.has(p.player_id)) {
+            await window.GTWData.upsertAvailability(gameId, p.player_id, 'available');
+          }
+        }
+        this.availabilities = await window.GTWData.listAvailabilities(gameId);
+      } catch (err) {
+        this.error = err.message;
+      }
+    },
+
+    // ============ ROTATION ============
+
+    isEqualOpportunity() {
+      return this.game?.team?.rule_mode === 'equal_opportunity';
+    },
+
+    availablePlayers() {
+      // All eligible players (regulars + borrowed) where availability=available
+      return this.allEligiblePlayers().filter(p => this.availabilityFor(p.player_id) === 'available');
+    },
+
+    async generateRotationNow() {
+      if (this.rotationPlan?.is_locked) {
+        if (!confirm('Rotation plan is locked. Unlock and regenerate?')) return;
+      } else if (this.rotationPlan) {
+        if (!confirm('Regenerate rotation plan? Current plan will be replaced.')) return;
+      }
+
+      // Build the algorithm input — note priority_weight passes through (1.0 for regulars, <1 for borrowed)
+      const players = this.availablePlayers().map(p => ({
+        id: p.player_id,
+        full_name: p.full_name,
+        jersey_no: p.jersey_no,
+        priority_weight: p.priority_weight,
+        is_borrowed: p.is_borrowed
+      }));
+
+      if (players.length < 5) {
+        this.error = `Need at least 5 available players to generate a rotation (currently ${players.length} confirmed available).`;
+        return;
+      }
+
+      this.generatingRotation = true;
+      this.error = '';
+      try {
+        const periods = this.game.periods ?? this.game.team.game_format_periods ?? 2;
+        const minutesPerPeriod = this.game.minutes_per_period ?? this.game.team.game_format_minutes_per_period ?? 20;
+        // Use team's configured block size (e.g. 5 for U10, 10 for quarter-locked)
+        const blockSize = this.game.team.rotation_block_minutes ?? 2;
+
+        const plan = window.GTWRotation.generate(players, periods, minutesPerPeriod, blockSize);
+        await window.GTWData.saveRotationPlan(gameId, plan, false);
+        await this.loadAvailabilityAndRotation();
+      } catch (err) {
+        this.error = err.message;
+      } finally {
+        this.generatingRotation = false;
+      }
+    },
+
+    async toggleRotationLock() {
+      if (!this.rotationPlan) return;
+      try {
+        await window.GTWData.setRotationLock(this.rotationPlan.id, !this.rotationPlan.is_locked);
+        await this.loadAvailabilityAndRotation();
+      } catch (err) {
+        this.error = err.message;
+      }
+    },
+
+    async clearRotation() {
+      if (!confirm('Delete the current rotation plan?')) return;
+      try {
+        await window.GTWData.deleteRotationPlan(gameId);
+        await this.loadAvailabilityAndRotation();
+      } catch (err) {
+        this.error = err.message;
+      }
+    },
+
+    rotationMatrix() {
+      if (!this.rotationPlan?.plan) return null;
+      const players = this.availablePlayers().map(p => ({
+        id: p.player_id,
+        full_name: p.full_name + (p.is_borrowed ? ' (borrowed)' : ''),
+        jersey_no: p.jersey_no
+      }));
+      return window.GTWRotation.toMatrix(this.rotationPlan.plan, players);
+    },
+
+    minutesByPlayer() {
+      return this.rotationPlan?.plan?.minutes_by_player || {};
+    },
+
+    printRotation() {
+      window.print();
     },
 
     canEdit() {

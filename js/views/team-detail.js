@@ -41,7 +41,8 @@ function teamDetailView(currentClub, currentStaff, teamId, onNavigate) {
         division: this.team.division || '',
         rule_mode: this.team.rule_mode,
         game_format_periods: this.team.game_format_periods,
-        game_format_minutes_per_period: this.team.game_format_minutes_per_period
+        game_format_minutes_per_period: this.team.game_format_minutes_per_period,
+        rotation_block_minutes: this.team.rotation_block_minutes ?? 2
       };
       this.teamStaff = await window.GTWData.listTeamStaff(teamId);
       this.clubStaff = await window.GTWData.listStaff(currentClub.id);
@@ -215,7 +216,8 @@ function teamDetailView(currentClub, currentStaff, teamId, onNavigate) {
           division: this.teamForm.division.trim() || null,
           rule_mode: this.teamForm.rule_mode,
           game_format_periods: parseInt(this.teamForm.game_format_periods, 10),
-          game_format_minutes_per_period: parseInt(this.teamForm.game_format_minutes_per_period, 10)
+          game_format_minutes_per_period: parseInt(this.teamForm.game_format_minutes_per_period, 10),
+          rotation_block_minutes: parseInt(this.teamForm.rotation_block_minutes, 10) || 2
         });
         await this.loadAll();
       } catch (err) {

@@ -15,7 +15,8 @@ function teamsView(currentClub, currentStaff, onNavigate) {
       division: '',
       rule_mode: 'equal_opportunity',
       game_format_periods: 2,
-      game_format_minutes_per_period: 20
+      game_format_minutes_per_period: 20,
+      rotation_block_minutes: 2
     },
 
     async init() {
@@ -56,7 +57,8 @@ function teamsView(currentClub, currentStaff, onNavigate) {
         division: '',
         rule_mode: 'equal_opportunity',
         game_format_periods: 2,
-        game_format_minutes_per_period: 20
+        game_format_minutes_per_period: 20,
+        rotation_block_minutes: 2
       };
       this.showCreate = true;
     },
@@ -76,7 +78,8 @@ function teamsView(currentClub, currentStaff, onNavigate) {
           gender: this.newTeam.gender || null,
           division: this.newTeam.division.trim(),
           game_format_periods: parseInt(this.newTeam.game_format_periods, 10),
-          game_format_minutes_per_period: parseInt(this.newTeam.game_format_minutes_per_period, 10)
+          game_format_minutes_per_period: parseInt(this.newTeam.game_format_minutes_per_period, 10),
+          rotation_block_minutes: parseInt(this.newTeam.rotation_block_minutes, 10) || 2
         });
         this.showCreate = false;
         await this.loadTeams();

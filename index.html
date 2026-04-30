@@ -388,6 +388,12 @@
                           <input type="number" min="1" max="30" x-model="newTeam.game_format_minutes_per_period"
                             class="w-full border border-slate-300 rounded-lg px-3 py-2" />
                         </div>
+                        <div>
+                          <label class="block text-sm font-medium mb-1">Sub block (min)</label>
+                          <input type="number" min="1" max="30" x-model="newTeam.rotation_block_minutes"
+                            class="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                          <p class="text-xs text-slate-500 mt-1">Subs every X min. e.g. 5 for U10, 10 = quarter-locked.</p>
+                        </div>
                       </div>
                       <div class="text-xs text-slate-500">Total game length: <span x-text="(newTeam.game_format_periods * newTeam.game_format_minutes_per_period)"></span> min</div>
                       <div class="flex gap-2 pt-2">
@@ -474,6 +480,12 @@
                             <label class="block text-sm font-medium mb-1">Minutes per period</label>
                             <input type="number" min="1" max="30" x-model="teamForm.game_format_minutes_per_period"
                               class="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                          </div>
+                          <div>
+                            <label class="block text-sm font-medium mb-1">Sub block (min)</label>
+                            <input type="number" min="1" max="30" x-model="teamForm.rotation_block_minutes"
+                              class="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                            <p class="text-xs text-slate-500 mt-1">Subs every X min. e.g. 5 for U10, 10 = quarter-locked.</p>
                           </div>
                         </div>
                         <div class="text-xs text-slate-500">Total: <span x-text="(teamForm.game_format_periods * teamForm.game_format_minutes_per_period)"></span> min</div>
@@ -1655,22 +1667,258 @@
                           </div>
                         </template>
 
-                        <!-- Day -1: Game day notice (placeholder until step 9) -->
+                        <!-- Day -1: Game day notice + rotation -->
                         <template x-for="step in workflowSteps().filter(s => s.key === 'gameday')" :key="step.key">
                           <div class="bg-white border rounded-xl p-5"
                                :class="step.windowOpen ? 'border-brand-300 bg-brand-50/30' : 'border-slate-200'">
-                            <div class="flex items-start justify-between gap-3 mb-2">
+                            <div class="flex items-start justify-between gap-3 mb-3">
                               <div class="flex items-start gap-2">
                                 <span class="text-xl" x-text="step.icon"></span>
                                 <div>
                                   <h3 class="font-semibold" x-text="step.label"></h3>
-                                  <div class="text-xs text-slate-600 mt-0.5" x-text="step.status"></div>
+                                  <div class="text-xs text-slate-600 mt-0.5">Set availability, generate rotation, then send game-day message (step 9).</div>
                                 </div>
                               </div>
                               <span x-show="step.windowOpen"
                                 class="text-[10px] uppercase tracking-wider bg-brand-600 text-white rounded px-2 py-0.5">Now</span>
                             </div>
-                            <div class="mt-2 text-xs text-slate-500 italic" x-text="step.placeholder"></div>
+
+                            <!-- Availability section -->
+                            <div class="mt-3 p-3 bg-slate-50 rounded-lg no-print">
+                              <div class="flex items-center justify-between mb-2">
+                                <div class="text-sm font-semibold">Player availability</div>
+                                <div class="flex items-center gap-3 text-xs">
+                                  <span class="text-green-700">✓ <span x-text="availabilityCount('available')"></span> available</span>
+                                  <span class="text-red-600">✗ <span x-text="availabilityCount('unavailable')"></span> out</span>
+                                  <span class="text-amber-600">🤕 <span x-text="availabilityCount('injured')"></span> injured</span>
+                                  <span class="text-slate-500">? <span x-text="unconfirmedCount()"></span> unconfirmed</span>
+                                </div>
+                              </div>
+
+                              <button @click="showAvailability = !showAvailability"
+                                class="text-xs text-brand-600 hover:underline">
+                                <span x-text="showAvailability ? '▼ Hide' : '▶ Show'"></span> availability list
+                              </button>
+
+                              <template x-if="showAvailability">
+                                <div class="mt-3">
+                                  <div class="flex justify-end mb-2">
+                                    <button @click="markAllAvailable()" x-show="unconfirmedCount() > 0"
+                                      class="text-xs bg-brand-100 text-brand-700 hover:bg-brand-200 rounded px-2 py-1">
+                                      Mark all unconfirmed as Available
+                                    </button>
+                                  </div>
+                                  <div class="space-y-1">
+                                    <template x-for="p in allEligiblePlayers()" :key="p.player_id">
+                                      <div class="flex items-center justify-between gap-2 text-sm p-2 border border-slate-200 rounded bg-white"
+                                           :class="p.is_borrowed && 'bg-amber-50 border-amber-200'">
+                                        <div class="flex-1 min-w-0">
+                                          <span class="font-mono text-xs text-slate-500 mr-2" x-text="p.jersey_no ?? '—'"></span>
+                                          <span class="font-medium" x-text="p.full_name"></span>
+                                          <template x-if="p.is_borrowed">
+                                            <span class="ml-2 text-[10px] uppercase tracking-wider bg-amber-200 text-amber-800 rounded px-1.5 py-0.5"
+                                                  :title="'Priority weight ' + p.priority_weight + ' — plays ~' + Math.round(p.priority_weight * 100) + '% of a regular share'">
+                                              Borrowed · w<span x-text="p.priority_weight"></span>
+                                            </span>
+                                          </template>
+                                        </div>
+                                        <div class="flex gap-1 shrink-0">
+                                          <button @click="setAvailability(p.player_id, 'available')"
+                                            :class="availabilityFor(p.player_id) === 'available' ? 'bg-green-600 text-white' : 'bg-white border border-slate-300 text-slate-600 hover:bg-green-50'"
+                                            class="text-xs rounded px-2 py-1">✓ In</button>
+                                          <button @click="setAvailability(p.player_id, 'unavailable')"
+                                            :class="availabilityFor(p.player_id) === 'unavailable' ? 'bg-red-600 text-white' : 'bg-white border border-slate-300 text-slate-600 hover:bg-red-50'"
+                                            class="text-xs rounded px-2 py-1">✗ Out</button>
+                                          <button @click="setAvailability(p.player_id, 'injured')"
+                                            :class="availabilityFor(p.player_id) === 'injured' ? 'bg-amber-500 text-white' : 'bg-white border border-slate-300 text-slate-600 hover:bg-amber-50'"
+                                            class="text-xs rounded px-2 py-1">🤕</button>
+                                          <button @click="setAvailability(p.player_id, '')"
+                                            x-show="availabilityFor(p.player_id)"
+                                            class="text-xs text-slate-400 hover:text-slate-700 px-1" title="Clear">×</button>
+                                        </div>
+                                      </div>
+                                    </template>
+                                  </div>
+                                </div>
+                              </template>
+                            </div>
+
+                            <!-- Borrowed players section -->
+                            <div class="mt-3 p-3 bg-slate-50 rounded-lg no-print">
+                              <div class="flex items-center justify-between mb-2">
+                                <div>
+                                  <div class="text-sm font-semibold">Borrowed players for this game</div>
+                                  <p class="text-xs text-slate-500">Pick from elsewhere in the club. Lower priority weight = less court time.</p>
+                                </div>
+                                <button @click="openBorrowPicker()"
+                                  class="bg-white border border-amber-300 text-amber-700 hover:bg-amber-50 text-xs rounded px-3 py-1.5 font-medium whitespace-nowrap">
+                                  + Borrow player
+                                </button>
+                              </div>
+
+                              <div x-show="borrowedPlayers.length === 0" class="text-xs text-slate-400 italic">
+                                None borrowed for this game.
+                              </div>
+
+                              <div class="space-y-1">
+                                <template x-for="b in borrowedPlayers" :key="b.id">
+                                  <div class="flex items-center justify-between gap-2 text-sm p-2 bg-amber-50 border border-amber-200 rounded">
+                                    <div class="flex-1 min-w-0">
+                                      <span class="font-medium" x-text="b.player?.full_name"></span>
+                                      <template x-if="b.player?.family?.family_name">
+                                        <span class="text-xs text-slate-500" x-text="' · ' + b.player.family.family_name"></span>
+                                      </template>
+                                    </div>
+                                    <div class="flex items-center gap-2 shrink-0 text-xs">
+                                      <label class="flex items-center gap-1">
+                                        <span class="text-slate-500">Weight:</span>
+                                        <select :value="b.priority_weight"
+                                          @change="updateBorrowWeight(b, $event.target.value)"
+                                          class="border border-slate-300 rounded px-1 py-0.5">
+                                          <option value="0.25">0.25 (¼)</option>
+                                          <option value="0.5">0.50 (½)</option>
+                                          <option value="0.75">0.75 (¾)</option>
+                                          <option value="1.0">1.00 (full)</option>
+                                        </select>
+                                      </label>
+                                      <button @click="removeBorrow(b.id, b.player?.full_name)"
+                                        class="text-red-600 hover:underline">Remove</button>
+                                    </div>
+                                  </div>
+                                </template>
+                              </div>
+
+                              <!-- Borrow picker -->
+                              <template x-if="showBorrowPicker">
+                                <div class="mt-3 pt-3 border-t border-slate-200">
+                                  <input type="text" x-model="borrowSearch" placeholder="Search players in club not on this team…"
+                                    class="w-full border border-slate-300 rounded px-2 py-1.5 text-sm mb-2" />
+                                  <div class="max-h-48 overflow-y-auto border border-slate-200 rounded mb-2">
+                                    <template x-if="filteredBorrowCandidates().length === 0">
+                                      <p class="p-3 text-xs text-slate-500 italic">No matching players.</p>
+                                    </template>
+                                    <template x-for="p in filteredBorrowCandidates()" :key="p.id">
+                                      <label class="flex items-center gap-2 p-2 border-b border-slate-100 hover:bg-amber-50 cursor-pointer text-sm">
+                                        <input type="radio" name="borrow_pick" :value="p.id" x-model="selectedBorrowPlayer" />
+                                        <span class="font-medium" x-text="p.full_name"></span>
+                                        <template x-if="p.family?.family_name">
+                                          <span class="text-xs text-slate-500" x-text="' · ' + p.family.family_name"></span>
+                                        </template>
+                                      </label>
+                                    </template>
+                                  </div>
+                                  <div class="flex items-center gap-3 mb-2">
+                                    <label class="text-xs">Priority weight:</label>
+                                    <select x-model="borrowWeight" class="border border-slate-300 rounded px-2 py-1 text-xs">
+                                      <option value="0.25">0.25 (quarter share)</option>
+                                      <option value="0.5">0.50 (half share — default)</option>
+                                      <option value="0.75">0.75 (three-quarter share)</option>
+                                      <option value="1.0">1.00 (full share — equal to regulars)</option>
+                                    </select>
+                                  </div>
+                                  <div class="flex gap-2">
+                                    <button @click="addBorrow()" :disabled="!selectedBorrowPlayer"
+                                      class="bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-xs rounded px-3 py-1.5">Add as borrowed</button>
+                                    <button @click="cancelBorrowPicker()" class="text-xs text-slate-600 px-3 py-1.5">Cancel</button>
+                                  </div>
+                                </div>
+                              </template>
+                            </div>
+
+                            <!-- Rotation section (equal_opportunity) -->
+                            <template x-if="isEqualOpportunity()">
+                              <div class="mt-3">
+                                <div class="flex items-center justify-between mb-2">
+                                  <div>
+                                    <h4 class="text-sm font-semibold">Rotation plan</h4>
+                                    <p class="text-xs text-slate-500">
+                                      Equal-opportunity engine — every available player gets ~equal court time.
+                                      <template x-if="rotationPlan">
+                                        <span class="text-slate-700"> · Generated <span x-text="new Date(rotationPlan.generated_at).toLocaleString('en-AU')"></span></span>
+                                      </template>
+                                    </p>
+                                  </div>
+                                  <div class="flex gap-2 no-print">
+                                    <template x-if="rotationPlan">
+                                      <button @click="toggleRotationLock()"
+                                        :class="rotationPlan.is_locked ? 'text-amber-600' : 'text-slate-500 hover:text-amber-500'"
+                                        class="text-sm px-2"
+                                        :title="rotationPlan.is_locked ? 'Unlock' : 'Lock'">
+                                        <span x-text="rotationPlan.is_locked ? '🔒' : '🔓'"></span>
+                                      </button>
+                                    </template>
+                                    <button @click="generateRotationNow()" :disabled="generatingRotation"
+                                      class="bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm rounded px-3 py-1.5 font-medium">
+                                      <span x-text="generatingRotation ? 'Generating…' : (rotationPlan ? 'Regenerate' : 'Generate')"></span>
+                                    </button>
+                                    <template x-if="rotationPlan">
+                                      <button @click="printRotation()"
+                                        class="text-sm text-brand-600 hover:underline px-2">🖨️ Print</button>
+                                    </template>
+                                    <template x-if="rotationPlan">
+                                      <button @click="clearRotation()"
+                                        class="text-sm text-red-600 hover:underline px-2">Clear</button>
+                                    </template>
+                                  </div>
+                                </div>
+
+                                <!-- Empty state -->
+                                <template x-if="!rotationPlan">
+                                  <div class="text-xs text-slate-500 italic p-3 bg-slate-50 rounded">
+                                    No plan generated yet. Confirm at least 5 players as Available, then click Generate.
+                                  </div>
+                                </template>
+
+                                <!-- Rotation chart matrix -->
+                                <template x-if="rotationPlan && rotationMatrix()">
+                                  <div class="mt-2">
+                                    <div class="overflow-x-auto border border-slate-200 rounded-lg bg-white">
+                                      <table class="text-xs w-full">
+                                        <thead class="bg-slate-50">
+                                          <tr>
+                                            <th class="text-left p-2 sticky left-0 bg-slate-50 z-10 border-r border-slate-200">Player</th>
+                                            <template x-for="col in rotationMatrix().columnHeaders" :key="col.label">
+                                              <th class="text-center p-2 whitespace-nowrap border-r border-slate-100">
+                                                <div class="text-[10px] text-slate-500">Q<span x-text="col.period"></span></div>
+                                                <div class="font-mono text-[10px]" x-text="col.from + '-' + col.to"></div>
+                                              </th>
+                                            </template>
+                                            <th class="text-right p-2 sticky right-0 bg-slate-50 z-10 border-l border-slate-200">Min</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          <template x-for="row in rotationMatrix().rows" :key="row.player_id">
+                                            <tr class="border-t border-slate-100">
+                                              <td class="p-2 sticky left-0 bg-white border-r border-slate-200 whitespace-nowrap">
+                                                <span class="font-mono text-slate-500 mr-1" x-text="row.jersey_no ?? ''"></span>
+                                                <span class="font-medium" x-text="row.full_name"></span>
+                                              </td>
+                                              <template x-for="(onCourt, i) in row.blocks" :key="i">
+                                                <td class="text-center p-2 border-r border-slate-100"
+                                                  :class="onCourt ? 'bg-brand-100 text-brand-700 font-semibold' : 'text-slate-300'">
+                                                  <span x-text="onCourt ? '●' : '·'"></span>
+                                                </td>
+                                              </template>
+                                              <td class="text-right p-2 sticky right-0 bg-white border-l border-slate-200 font-mono font-semibold" x-text="row.total_minutes"></td>
+                                            </tr>
+                                          </template>
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                    <p class="text-[10px] text-slate-500 mt-1 italic">
+                                      ● = on court · Each column is a substitution block. Print this for the bench.
+                                    </p>
+                                  </div>
+                                </template>
+                              </div>
+                            </template>
+
+                            <!-- Senior team (no_engine) placeholder -->
+                            <template x-if="!isEqualOpportunity()">
+                              <div class="mt-3 p-3 bg-amber-50 border border-amber-200 rounded text-xs text-amber-800 italic">
+                                This team is set to "No engine" rule mode. Manual rotation scratch pad lands in step 10.
+                              </div>
+                            </template>
                           </div>
                         </template>
                       </div>
@@ -1864,6 +2112,7 @@
 
   <!-- App scripts: order matters — data layer first, then app, then views -->
   <script src="js/lib/data.js"></script>
+  <script src="js/lib/rotation.js"></script>
   <script src="js/app.js"></script>
   <script src="js/views/dashboard.js"></script>
   <script src="js/views/settings.js"></script>
