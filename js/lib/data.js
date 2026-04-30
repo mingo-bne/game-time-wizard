@@ -117,6 +117,56 @@ window.GTWData = (function () {
     return check(await sb().from('teams').delete().eq('id', teamId));
   }
 
+  // ---------- RATINGS (per player per team) ----------
+
+  async function listRatingsForTeam(teamId) {
+    return check(await sb()
+      .from('ratings')
+      .select('*')
+      .eq('team_id', teamId));
+  }
+
+  async function upsertRating(playerId, teamId, fields) {
+    // Upsert by composite (player_id, team_id) — matches the unique constraint.
+    return check(await sb().from('ratings').upsert({
+      player_id: playerId,
+      team_id: teamId,
+      phy_speed: fields.phy_speed,
+      phy_strength: fields.phy_strength,
+      phy_size: fields.phy_size,
+      phy_fitness: fields.phy_fitness,
+      cs_shooting: fields.cs_shooting,
+      cs_ball_handling: fields.cs_ball_handling,
+      cs_passing: fields.cs_passing,
+      cs_defence: fields.cs_defence,
+      cs_rebounding: fields.cs_rebounding,
+      iq_court_awareness: fields.iq_court_awareness,
+      iq_decision_making: fields.iq_decision_making,
+      notes: fields.notes || null,
+      rated_at: new Date().toISOString()
+    }, { onConflict: 'player_id,team_id' }).select().single());
+  }
+
+  async function deleteRating(playerId, teamId) {
+    return check(await sb()
+      .from('ratings')
+      .delete()
+      .eq('player_id', playerId)
+      .eq('team_id', teamId));
+  }
+
+  async function isHeadCoachOfTeam(teamId, staffId) {
+    const { data, error } = await sb()
+      .from('team_staff')
+      .select('id')
+      .eq('team_id', teamId)
+      .eq('staff_id', staffId)
+      .eq('role', 'head_coach')
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return !!data;
+  }
+
   // ---------- TEAM <-> STAFF ASSIGNMENTS ----------
 
   async function listTeamStaff(teamId) {
@@ -417,6 +467,7 @@ window.GTWData = (function () {
     addFamilyContact, updateFamilyContact, removeFamilyContact,
     listClubPlayers, createClubPlayer, updatePlayer, deletePlayer,
     listTeamRoster, createMembership, updateMembership, removeMembership,
+    listRatingsForTeam, upsertRating, deleteRating, isHeadCoachOfTeam,
     listSeasons, getCurrentSeason, createSeason, updateSeason, deleteSeason,
     listOpponents, createOpponent, updateOpponent, deleteOpponent,
     getPlayerPreference, upsertPlayerPreference, listSeasonPreferences,

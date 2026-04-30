@@ -31,6 +31,7 @@ function app() {
       { route: 'dashboard', label: 'Dashboard', icon: '📋' },
       { route: 'teams',     label: 'Teams',     icon: '👥' },
       { route: 'roster',    label: 'Roster',    icon: '🏀' },
+      { route: 'ratings',   label: 'Ratings',   icon: '⭐' },
       { route: 'games',     label: 'Games',     icon: '📅' },
       { route: 'settings',  label: 'Settings',  icon: '⚙️' }
     ],
