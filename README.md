@@ -14,11 +14,18 @@ Game Time Wizard/
 ├── css/
 │   └── app.css           Custom styles on top of Tailwind
 ├── js/
-│   └── app.js            App logic (auth, routing, views)
+│   ├── app.js            Root Alpine component (auth, routing, navigation)
+│   ├── lib/
+│   │   └── data.js       Supabase data access helpers
+│   └── views/
+│       ├── settings.js   Club + Staff management
+│       ├── teams.js      Teams list + create
+│       └── team-detail.js Team settings + staff assignments
 └── db/
     ├── schema.sql        Postgres tables, views, triggers
     ├── rls.sql           Row-Level Security policies
-    └── seed.sql          Default comm templates
+    ├── seed.sql          Default comm templates
+    └── migration_step3.sql  Adds pending-staff support + auto-attach trigger
 ```
 
 ## Stack
@@ -90,7 +97,7 @@ See SCOPE.md for module scope. Build sequence tracked in TaskList.
 
 - [x] Schema + RLS + seed
 - [x] Frontend scaffold (auth, routing, app shell, stub views)
-- [ ] Auth callback + first-run club/team/staff setup
+- [x] Settings (Club + Staff), Teams, Team Detail with staff assignments
 - [ ] Roster module
 - [ ] Ratings module (11 sub-skills)
 - [ ] Schedule + Game Week shell

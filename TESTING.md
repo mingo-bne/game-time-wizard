@@ -142,11 +142,18 @@ The auth user exists, but you don't yet have a `staff` row that connects you to 
     insert into clubs (name) values ('My Basketball Club') returning id;
     ```
 11. Copy the returned UUID (it'll look like `a1b2c3d4-...`)
-12. Run this (paste your UUID, your name, your email):
+12. Run this (paste your club UUID, your name, your email — the email MUST match the one you signed in with via magic link):
     ```sql
     insert into staff (user_id, club_id, full_name, email, is_admin)
-    values (auth.uid(), 'PASTE-CLUB-UUID-HERE', 'Ming Lu', 'mingo.bne@gmail.com', true);
+    values (
+      (select id from auth.users where email = 'mingo.bne@gmail.com'),
+      'PASTE-CLUB-UUID-HERE',
+      'Ming Lu',
+      'mingo.bne@gmail.com',
+      true
+    );
     ```
+    > Note: `auth.uid()` doesn't work in the Supabase SQL Editor (the editor runs as admin, not as you). The subquery above looks up your user ID from the auth table by email instead.
 13. Run the seed (paste your club UUID where it says `:club_id`):
     ```sql
     -- Open db/seed.sql, copy contents, replace :club_id with your UUID, paste here, Run
@@ -186,3 +193,38 @@ If all of that worked, you've successfully tested the v1 scaffold end-to-end. Th
 ---
 
 When you're done testing, tell me what you saw and I'll move to step 3 (the actual setup screens that replace the manual SQL bootstrap).
+
+---
+
+# Step 3 — Testing the Settings + Teams build
+
+Once step 3 is built, you re-deploy and verify the new screens.
+
+## A. Run the migration
+
+1. Supabase → SQL Editor → + New query
+2. Copy the entire contents of `db/migration_step3.sql` → paste → Run
+3. Should see "Success. No rows returned"
+
+## B. Re-deploy the frontend to GitHub
+
+You have new files: `js/lib/data.js`, `js/views/settings.js`, `js/views/teams.js`, `js/views/team-detail.js`. Plus updated `index.html`, `js/app.js`, `db/schema.sql`, `db/migration_step3.sql`, `README.md`.
+
+Easiest: in your GitHub repo, **Add file → Upload files**, drag in the entire `Game Time Wizard/` folder contents again, commit. GitHub will overwrite changed files and add new ones.
+
+Wait ~1 minute for GH Pages to redeploy.
+
+## C. Test the new screens
+
+1. Reload your live URL
+2. **Settings → Club:** rename your club. Click Save. Reload — name persists.
+3. **Settings → Staff:** you should see yourself in the list, marked Admin and Active.
+4. Click **+ Invite staff**. Enter a fake name + a different email you control (or leave empty for now and Cancel).
+5. **Teams** → **+ New team**. Fill in: Name "U14 Boys", Age "U14", Season "2026 Winter", Rule mode "Equal Opportunity", periods 4, minutes 8 (junior format). Create.
+6. You're auto-redirected to the new team's detail page.
+7. Click **+ Assign staff** → pick yourself → Role "Head Coach" → Assign.
+8. You should appear in the Staff on this team table.
+9. Click **← Back to teams** — your team appears in the list.
+
+If all of that works, step 3 is complete. Tell me and I'll move to step 4 (Roster).
+

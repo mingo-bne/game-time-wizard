@@ -35,19 +35,47 @@ create trigger trg_clubs_updated before update on clubs
   for each row execute function set_updated_at();
 
 -- staff = a person who logs in. Links to Supabase auth.users.
+-- user_id is nullable to support "pending" staff: an admin can pre-create a
+-- staff record by email; the auto_attach_staff_on_signup() trigger fills in
+-- user_id when that person first signs in via magic link.
 create table staff (
   id          uuid primary key default gen_random_uuid(),
-  user_id     uuid not null unique references auth.users(id) on delete cascade,
+  user_id     uuid unique references auth.users(id) on delete cascade,
   club_id     uuid not null references clubs(id) on delete cascade,
   full_name   text not null,
   email       text not null,
   is_admin    boolean not null default false,  -- club-level admin (Ming)
+  invited_at  timestamptz,
+  attached_at timestamptz,
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );
 create index idx_staff_club on staff(club_id);
 create trigger trg_staff_updated before update on staff
   for each row execute function set_updated_at();
+
+-- Auto-attach trigger: when a new auth.users row is created (someone signs
+-- in via magic link for the first time), find any pending staff records
+-- with a matching email and link them to the new auth user.
+create or replace function auto_attach_staff_on_signup()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update staff
+     set user_id = new.id,
+         attached_at = now()
+   where user_id is null
+     and lower(email) = lower(new.email);
+  return new;
+end $$;
+
+drop trigger if exists trg_attach_staff on auth.users;
+create trigger trg_attach_staff
+  after insert on auth.users
+  for each row execute function auto_attach_staff_on_signup();
 
 create table teams (
   id          uuid primary key default gen_random_uuid(),

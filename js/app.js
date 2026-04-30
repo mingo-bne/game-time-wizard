@@ -3,21 +3,6 @@
 // Vanilla JS + Alpine.js + Supabase. No build step.
 // =====================================================================
 
-// Singleton Supabase client (created once config is verified)
-let _supabase = null;
-
-function getSupabase() {
-  if (_supabase) return _supabase;
-  if (!window.GTW_CONFIG?.SUPABASE_URL || !window.GTW_CONFIG?.SUPABASE_ANON) {
-    return null;
-  }
-  _supabase = window.supabase.createClient(
-    window.GTW_CONFIG.SUPABASE_URL,
-    window.GTW_CONFIG.SUPABASE_ANON
-  );
-  return _supabase;
-}
-
 // =====================================================================
 // Alpine root component
 // =====================================================================
@@ -27,7 +12,13 @@ function app() {
     configMissing: false,
     loading: true,
     session: null,
+    currentStaff: null,
+    currentClub: null,
+    accessDenied: false,
+
+    // routing
     route: 'dashboard',
+    subroute: null,        // e.g. team UUID for #/teams/<uuid>
 
     // login form
     loginEmail: '',
@@ -47,8 +38,7 @@ function app() {
     // ---- lifecycle ----
     async init() {
       // Check config
-      const sb = getSupabase();
-      if (!sb) {
+      if (!window.GTW_CONFIG?.SUPABASE_URL || !window.GTW_CONFIG?.SUPABASE_ANON) {
         this.configMissing = true;
         this.loading = false;
         return;
@@ -58,27 +48,62 @@ function app() {
       this.syncRouteFromHash();
       window.addEventListener('hashchange', () => this.syncRouteFromHash());
 
+      const sb = window.GTWData.sb();
+
       // Check existing session
       const { data: { session } } = await sb.auth.getSession();
       this.session = session;
+      if (this.session) await this.loadStaffContext();
       this.loading = false;
 
       // Listen for auth state changes (magic link callback, sign out)
-      sb.auth.onAuthStateChange((_event, newSession) => {
+      sb.auth.onAuthStateChange(async (_event, newSession) => {
+        const wasSignedIn = !!this.session;
         this.session = newSession;
+        if (newSession && !wasSignedIn) {
+          this.loading = true;
+          await this.loadStaffContext();
+          this.loading = false;
+        }
+        if (!newSession) {
+          this.currentStaff = null;
+          this.currentClub = null;
+          this.accessDenied = false;
+        }
       });
+    },
+
+    async loadStaffContext() {
+      try {
+        this.currentStaff = await window.GTWData.getCurrentStaff();
+        if (!this.currentStaff) {
+          this.accessDenied = true;
+          this.currentClub = null;
+          return;
+        }
+        this.accessDenied = false;
+        this.currentClub = await window.GTWData.getClub(this.currentStaff.club_id);
+      } catch (err) {
+        console.error('Failed to load staff context:', err);
+        this.accessDenied = true;
+      }
     },
 
     // ---- routing ----
     syncRouteFromHash() {
       const hash = window.location.hash || '#/dashboard';
-      const route = hash.replace(/^#\//, '').split('/')[0] || 'dashboard';
+      const parts = hash.replace(/^#\//, '').split('/');
+      const route = parts[0] || 'dashboard';
       this.route = this.nav.some(n => n.route === route) ? route : 'dashboard';
+      this.subroute = parts[1] || null;
     },
 
-    navigate(route) {
+    navigate(route, subroute) {
       this.route = route;
-      window.location.hash = '#/' + route;
+      this.subroute = subroute || null;
+      window.location.hash = subroute
+        ? `#/${route}/${subroute}`
+        : `#/${route}`;
     },
 
     // ---- auth actions ----
@@ -86,11 +111,10 @@ function app() {
       this.loginError = '';
       this.sending = true;
       try {
-        const sb = getSupabase();
+        const sb = window.GTWData.sb();
         const { error } = await sb.auth.signInWithOtp({
           email: this.loginEmail.trim(),
           options: {
-            // Redirect back to this page after the magic link is clicked
             emailRedirectTo: window.location.origin + window.location.pathname
           }
         });
@@ -104,14 +128,14 @@ function app() {
     },
 
     async signOut() {
-      const sb = getSupabase();
+      const sb = window.GTWData.sb();
       await sb.auth.signOut();
       this.session = null;
       this.magicLinkSent = false;
       this.loginEmail = '';
+      window.location.hash = '#/dashboard';
     }
   };
 }
 
-// Expose to global scope so Alpine can find it
 window.app = app;

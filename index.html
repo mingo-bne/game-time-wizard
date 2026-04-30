@@ -6,10 +6,9 @@
   <meta name="description" content="Club basketball management — roster, ratings, rotation, duty, comms." />
   <title>Game Time Wizard</title>
 
-  <!-- Favicon: basketball emoji -->
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏀</text></svg>" />
 
-  <!-- Tailwind via CDN (Play CDN, fine for static deploy) -->
+  <!-- Tailwind via CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -17,23 +16,17 @@
         extend: {
           colors: {
             brand: {
-              50:  '#fff7ed',
-              100: '#ffedd5',
-              500: '#f97316',
-              600: '#ea580c',
-              700: '#c2410c',
-              900: '#7c2d12'
+              50:  '#fff7ed',  100: '#ffedd5',
+              500: '#f97316',  600: '#ea580c', 700: '#c2410c', 900: '#7c2d12'
             }
           },
-          fontFamily: {
-            sans: ['system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif']
-          }
+          fontFamily: { sans: ['system-ui','-apple-system','Segoe UI','Roboto','sans-serif'] }
         }
       }
     }
   </script>
 
-  <!-- Alpine.js for declarative reactivity -->
+  <!-- Alpine.js (defer = runs after DOM parsed) -->
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 
   <!-- Supabase JS client -->
@@ -46,19 +39,9 @@
 </head>
 <body class="bg-slate-50 text-slate-900 antialiased min-h-screen">
 
-  <!-- ============================================================ -->
-  <!-- ROOT APP CONTAINER (Alpine)                                   -->
-  <!-- ============================================================ -->
-  <div
-    x-data="app()"
-    x-init="init()"
-    x-cloak
-    class="min-h-screen"
-  >
+  <div x-data="app()" x-init="init()" x-cloak class="min-h-screen">
 
-    <!-- ========================== -->
-    <!-- CONFIG MISSING WARNING     -->
-    <!-- ========================== -->
+    <!-- ========== CONFIG MISSING ========== -->
     <template x-if="configMissing">
       <div class="min-h-screen flex items-center justify-center p-6">
         <div class="max-w-lg bg-white border border-amber-300 rounded-xl shadow-sm p-6">
@@ -67,26 +50,18 @@
             <code>config.js</code> is missing or incomplete. Copy <code>config.js.example</code>
             to <code>config.js</code> and fill in your Supabase URL and anon key.
           </p>
-          <pre class="bg-slate-100 text-xs p-3 rounded overflow-x-auto">window.GTW_CONFIG = {
-  SUPABASE_URL:  'https://YOUR-PROJECT.supabase.co',
-  SUPABASE_ANON: 'eyJhbGc...your-anon-key...'
-};</pre>
         </div>
       </div>
     </template>
 
-    <!-- ========================== -->
-    <!-- LOADING                    -->
-    <!-- ========================== -->
+    <!-- ========== LOADING ========== -->
     <template x-if="!configMissing && loading">
       <div class="min-h-screen flex items-center justify-center">
         <div class="text-slate-500 text-sm">Loading…</div>
       </div>
     </template>
 
-    <!-- ========================== -->
-    <!-- LOGIN (no session)         -->
-    <!-- ========================== -->
+    <!-- ========== LOGIN ========== -->
     <template x-if="!configMissing && !loading && !session">
       <div class="min-h-screen flex items-center justify-center p-6">
         <div class="w-full max-w-sm bg-white border border-slate-200 rounded-xl shadow-sm p-8">
@@ -100,24 +75,15 @@
             <form @submit.prevent="sendMagicLink()" class="space-y-4">
               <div>
                 <label class="block text-sm font-medium mb-1">Email</label>
-                <input
-                  type="email"
-                  required
-                  x-model="loginEmail"
+                <input type="email" required x-model="loginEmail"
                   placeholder="you@example.com"
-                  class="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
-                />
+                  class="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none" />
               </div>
-              <button
-                type="submit"
-                :disabled="sending"
-                class="w-full bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white rounded-lg py-2 font-medium"
-              >
+              <button type="submit" :disabled="sending"
+                class="w-full bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white rounded-lg py-2 font-medium">
                 <span x-text="sending ? 'Sending…' : 'Send magic link'"></span>
               </button>
-              <p class="text-xs text-slate-500 text-center">
-                We'll email you a sign-in link. No password required.
-              </p>
+              <p class="text-xs text-slate-500 text-center">We'll email you a sign-in link. No password required.</p>
             </form>
           </template>
 
@@ -125,13 +91,9 @@
             <div class="text-center space-y-3">
               <div class="text-3xl">📬</div>
               <p class="text-sm">
-                Check your inbox at <strong x-text="loginEmail"></strong>
-                and click the link to sign in.
+                Check your inbox at <strong x-text="loginEmail"></strong> and click the link to sign in.
               </p>
-              <button
-                @click="magicLinkSent = false"
-                class="text-xs text-brand-600 hover:underline"
-              >Use a different email</button>
+              <button @click="magicLinkSent = false" class="text-xs text-brand-600 hover:underline">Use a different email</button>
             </div>
           </template>
 
@@ -142,10 +104,23 @@
       </div>
     </template>
 
-    <!-- ========================== -->
-    <!-- APP SHELL (signed in)      -->
-    <!-- ========================== -->
-    <template x-if="!configMissing && !loading && session">
+    <!-- ========== ACCESS DENIED ========== -->
+    <template x-if="!configMissing && !loading && session && accessDenied">
+      <div class="min-h-screen flex items-center justify-center p-6">
+        <div class="w-full max-w-md bg-white border border-red-200 rounded-xl shadow-sm p-8 text-center">
+          <div class="text-4xl mb-3">🚫</div>
+          <h1 class="text-xl font-bold mb-2">No access</h1>
+          <p class="text-sm text-slate-600 mb-4">
+            You're signed in as <strong x-text="session?.user?.email"></strong> but haven't been added to a club.
+            Ask your club admin to invite you, then sign in again.
+          </p>
+          <button @click="signOut()" class="text-sm text-brand-600 hover:underline">Sign out</button>
+        </div>
+      </div>
+    </template>
+
+    <!-- ========== APP SHELL (signed in, with staff record) ========== -->
+    <template x-if="!configMissing && !loading && session && !accessDenied && currentStaff">
       <div class="flex min-h-screen">
 
         <!-- SIDEBAR -->
@@ -155,39 +130,34 @@
               <span class="text-2xl">🏀</span>
               <span class="font-semibold">Game Time Wizard</span>
             </div>
+            <div class="mt-2 text-xs text-slate-500 truncate" x-text="currentClub?.name"></div>
           </div>
           <nav class="flex-1 p-3 space-y-1">
             <template x-for="item in nav" :key="item.route">
-              <a
-                :href="'#/' + item.route"
-                @click="navigate(item.route)"
-                :class="route === item.route
-                  ? 'bg-brand-50 text-brand-700 font-medium'
-                  : 'text-slate-700 hover:bg-slate-100'"
-                class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm"
-              >
+              <a :href="'#/' + item.route" @click.prevent="navigate(item.route)"
+                :class="route === item.route ? 'bg-brand-50 text-brand-700 font-medium' : 'text-slate-700 hover:bg-slate-100'"
+                class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm">
                 <span x-text="item.icon"></span>
                 <span x-text="item.label"></span>
               </a>
             </template>
           </nav>
           <div class="p-3 border-t border-slate-200">
+            <div class="text-xs font-medium" x-text="currentStaff?.full_name"></div>
             <div class="text-xs text-slate-500 truncate" x-text="session?.user?.email"></div>
-            <button
-              @click="signOut()"
-              class="mt-2 w-full text-left text-xs text-slate-600 hover:text-red-600"
-            >Sign out</button>
+            <div class="mt-1 text-[10px] uppercase tracking-wider text-brand-600" x-show="currentStaff?.is_admin">Admin</div>
+            <button @click="signOut()" class="mt-2 w-full text-left text-xs text-slate-600 hover:text-red-600">Sign out</button>
           </div>
         </aside>
 
-        <!-- MAIN CONTENT -->
+        <!-- MAIN -->
         <main class="flex-1 flex flex-col">
 
           <!-- Mobile top bar -->
           <header class="md:hidden bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between">
             <div class="flex items-center gap-2">
               <span class="text-xl">🏀</span>
-              <span class="font-semibold">Game Time Wizard</span>
+              <span class="font-semibold" x-text="currentClub?.name || 'Game Time Wizard'"></span>
             </div>
             <button @click="signOut()" class="text-xs text-slate-600">Sign out</button>
           </header>
@@ -195,27 +165,22 @@
           <!-- Mobile bottom nav -->
           <nav class="md:hidden order-last bg-white border-t border-slate-200 grid grid-cols-5">
             <template x-for="item in nav" :key="item.route">
-              <a
-                :href="'#/' + item.route"
-                @click="navigate(item.route)"
+              <a :href="'#/' + item.route" @click.prevent="navigate(item.route)"
                 :class="route === item.route ? 'text-brand-600' : 'text-slate-500'"
-                class="flex flex-col items-center py-2 text-xs"
-              >
+                class="flex flex-col items-center py-2 text-xs">
                 <span class="text-lg" x-text="item.icon"></span>
                 <span x-text="item.label"></span>
               </a>
             </template>
           </nav>
 
-          <!-- View container -->
           <div class="flex-1 p-4 md:p-8 overflow-y-auto">
 
-            <!-- DASHBOARD -->
+            <!-- ========== DASHBOARD ========== -->
             <template x-if="route === 'dashboard'">
               <div>
                 <h1 class="text-2xl font-bold mb-1">Dashboard</h1>
                 <p class="text-sm text-slate-500 mb-6">Game Week overview — coming in step 6.</p>
-
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div class="bg-white border border-slate-200 rounded-xl p-5">
                     <div class="text-xs uppercase text-slate-500 mb-1">Upcoming games</div>
@@ -233,44 +198,394 @@
               </div>
             </template>
 
-            <!-- STUB VIEWS -->
-            <template x-if="route === 'teams'">
-              <div>
-                <h1 class="text-2xl font-bold mb-1">Teams</h1>
-                <p class="text-sm text-slate-500 mb-6">Team setup — coming in step 3.</p>
-                <div class="bg-white border border-slate-200 rounded-xl p-8 text-center text-slate-400">
-                  Stub view
+            <!-- ========== TEAMS LIST ========== -->
+            <template x-if="route === 'teams' && !subroute">
+              <div x-data="teamsView(currentClub, currentStaff, (r,s) => navigate(r,s))" x-init="init()">
+                <div class="flex items-center justify-between mb-6">
+                  <div>
+                    <h1 class="text-2xl font-bold">Teams</h1>
+                    <p class="text-sm text-slate-500">Create teams and assign staff.</p>
+                  </div>
+                  <button x-show="isAdmin()" @click="startCreate()"
+                    class="bg-brand-600 hover:bg-brand-700 text-white text-sm rounded-lg px-4 py-2 font-medium">
+                    + New team
+                  </button>
                 </div>
+
+                <p x-show="error" x-text="error" class="text-sm text-red-600 mb-3"></p>
+                <div x-show="loading" class="text-sm text-slate-500">Loading…</div>
+
+                <div x-show="!loading && teams.length === 0 && !showCreate"
+                  class="bg-white border border-slate-200 rounded-xl p-8 text-center">
+                  <p class="text-slate-600 mb-2">No teams yet.</p>
+                  <p class="text-sm text-slate-500" x-show="isAdmin()">Click "+ New team" to create your first team.</p>
+                  <p class="text-sm text-slate-500" x-show="!isAdmin()">Ask your club admin to create a team and assign you.</p>
+                </div>
+
+                <!-- Team list -->
+                <div x-show="!loading && teams.length > 0" class="bg-white border border-slate-200 rounded-xl overflow-hidden">
+                  <table class="w-full text-sm">
+                    <thead class="bg-slate-50 text-xs uppercase text-slate-600">
+                      <tr>
+                        <th class="text-left p-3">Team</th>
+                        <th class="text-left p-3">Age group</th>
+                        <th class="text-left p-3">Season</th>
+                        <th class="text-left p-3">Format</th>
+                        <th class="text-left p-3">Rule mode</th>
+                        <th class="text-right p-3"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <template x-for="t in teams" :key="t.id">
+                        <tr class="border-t border-slate-100 hover:bg-brand-50">
+                          <td class="p-3 font-medium">
+                            <a href="#" @click.prevent="open(t)" class="text-brand-700 hover:underline" x-text="t.name"></a>
+                          </td>
+                          <td class="p-3 text-slate-600" x-text="t.age_group || '—'"></td>
+                          <td class="p-3 text-slate-600" x-text="t.season || '—'"></td>
+                          <td class="p-3 text-slate-600" x-text="formatLabel(t)"></td>
+                          <td class="p-3 text-slate-600" x-text="ruleLabel(t)"></td>
+                          <td class="p-3 text-right">
+                            <button x-show="isAdmin()" @click="deleteTeam(t)"
+                              class="text-xs text-red-600 hover:underline">Delete</button>
+                          </td>
+                        </tr>
+                      </template>
+                    </tbody>
+                  </table>
+                </div>
+
+                <!-- Create form -->
+                <template x-if="showCreate">
+                  <div class="mt-6 bg-white border border-slate-200 rounded-xl p-6">
+                    <h2 class="text-lg font-semibold mb-4">New team</h2>
+                    <form @submit.prevent="createTeam()" class="space-y-4">
+                      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label class="block text-sm font-medium mb-1">Team name *</label>
+                          <input required x-model="newTeam.name" placeholder="U14 Boys Black"
+                            class="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                        </div>
+                        <div>
+                          <label class="block text-sm font-medium mb-1">Age group</label>
+                          <input x-model="newTeam.age_group" placeholder="U14"
+                            class="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                        </div>
+                        <div>
+                          <label class="block text-sm font-medium mb-1">Season</label>
+                          <input x-model="newTeam.season" placeholder="2026 Winter"
+                            class="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                        </div>
+                        <div>
+                          <label class="block text-sm font-medium mb-1">Rule mode</label>
+                          <select x-model="newTeam.rule_mode" class="w-full border border-slate-300 rounded-lg px-3 py-2">
+                            <option value="equal_opportunity">Equal Opportunity (juniors)</option>
+                            <option value="no_engine">No Engine (senior — manual scratch pad)</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label class="block text-sm font-medium mb-1">Periods per game</label>
+                          <input type="number" min="1" max="8" x-model="newTeam.game_format_periods"
+                            class="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                        </div>
+                        <div>
+                          <label class="block text-sm font-medium mb-1">Minutes per period</label>
+                          <input type="number" min="1" max="30" x-model="newTeam.game_format_minutes_per_period"
+                            class="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                        </div>
+                      </div>
+                      <div class="text-xs text-slate-500">Total game length: <span x-text="(newTeam.game_format_periods * newTeam.game_format_minutes_per_period)"></span> min</div>
+                      <div class="flex gap-2 pt-2">
+                        <button type="submit" :disabled="saving"
+                          class="bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm rounded-lg px-4 py-2 font-medium">
+                          <span x-text="saving ? 'Creating…' : 'Create team'"></span>
+                        </button>
+                        <button type="button" @click="showCreate = false"
+                          class="text-sm text-slate-600 hover:text-slate-900 px-4 py-2">Cancel</button>
+                      </div>
+                    </form>
+                  </div>
+                </template>
               </div>
             </template>
 
+            <!-- ========== TEAM DETAIL ========== -->
+            <template x-if="route === 'teams' && subroute">
+              <div x-data="teamDetailView(currentClub, currentStaff, subroute, (r,s) => navigate(r,s))" x-init="init()">
+                <div class="mb-4">
+                  <a href="#" @click.prevent="backToList()" class="text-sm text-brand-600 hover:underline">← Back to teams</a>
+                </div>
+
+                <div x-show="loading" class="text-sm text-slate-500">Loading…</div>
+
+                <template x-if="!loading && team">
+                  <div class="space-y-6">
+                    <div>
+                      <h1 class="text-2xl font-bold" x-text="team.name"></h1>
+                      <div class="text-sm text-slate-500">
+                        <span x-text="team.age_group || 'No age group'"></span> ·
+                        <span x-text="team.season || 'No season'"></span>
+                      </div>
+                    </div>
+
+                    <p x-show="error" x-text="error" class="text-sm text-red-600"></p>
+
+                    <!-- Team settings -->
+                    <div class="bg-white border border-slate-200 rounded-xl p-6">
+                      <h2 class="text-lg font-semibold mb-4">Team settings</h2>
+                      <fieldset :disabled="!canEdit()" class="space-y-4">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label class="block text-sm font-medium mb-1">Team name</label>
+                            <input x-model="teamForm.name" class="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                          </div>
+                          <div>
+                            <label class="block text-sm font-medium mb-1">Age group</label>
+                            <input x-model="teamForm.age_group" class="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                          </div>
+                          <div>
+                            <label class="block text-sm font-medium mb-1">Season</label>
+                            <input x-model="teamForm.season" class="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                          </div>
+                          <div>
+                            <label class="block text-sm font-medium mb-1">Rule mode</label>
+                            <select x-model="teamForm.rule_mode" class="w-full border border-slate-300 rounded-lg px-3 py-2">
+                              <option value="equal_opportunity">Equal Opportunity (juniors)</option>
+                              <option value="no_engine">No Engine (senior — manual scratch pad)</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label class="block text-sm font-medium mb-1">Periods per game</label>
+                            <input type="number" min="1" max="8" x-model="teamForm.game_format_periods"
+                              class="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                          </div>
+                          <div>
+                            <label class="block text-sm font-medium mb-1">Minutes per period</label>
+                            <input type="number" min="1" max="30" x-model="teamForm.game_format_minutes_per_period"
+                              class="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                          </div>
+                        </div>
+                        <div class="text-xs text-slate-500">Total: <span x-text="(teamForm.game_format_periods * teamForm.game_format_minutes_per_period)"></span> min</div>
+                        <button x-show="canEdit()" type="button" @click="saveTeam()" :disabled="saving"
+                          class="bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm rounded-lg px-4 py-2 font-medium">
+                          <span x-text="saving ? 'Saving…' : 'Save changes'"></span>
+                        </button>
+                      </fieldset>
+                    </div>
+
+                    <!-- Staff assignments -->
+                    <div class="bg-white border border-slate-200 rounded-xl p-6">
+                      <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-lg font-semibold">Staff on this team</h2>
+                        <button x-show="isAdmin() && unassignedStaff().length > 0" @click="startAddStaff()"
+                          class="bg-brand-600 hover:bg-brand-700 text-white text-xs rounded-lg px-3 py-1.5 font-medium">
+                          + Assign staff
+                        </button>
+                      </div>
+
+                      <div x-show="teamStaff.length === 0" class="text-sm text-slate-500">
+                        No staff assigned to this team yet.
+                      </div>
+
+                      <table x-show="teamStaff.length > 0" class="w-full text-sm">
+                        <thead class="text-xs uppercase text-slate-600 border-b border-slate-200">
+                          <tr>
+                            <th class="text-left py-2">Name</th>
+                            <th class="text-left py-2">Email</th>
+                            <th class="text-left py-2">Role on team</th>
+                            <th class="text-right py-2"></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <template x-for="ts in teamStaff" :key="ts.id">
+                            <tr class="border-b border-slate-100">
+                              <td class="py-2" x-text="ts.staff?.full_name"></td>
+                              <td class="py-2 text-slate-600" x-text="ts.staff?.email"></td>
+                              <td class="py-2">
+                                <select x-show="isAdmin()" :value="ts.role" @change="changeRole(ts, $event.target.value)"
+                                  class="text-xs border border-slate-300 rounded px-2 py-1">
+                                  <option value="head_coach">Head Coach</option>
+                                  <option value="assistant_coach">Assistant Coach</option>
+                                  <option value="team_manager">Team Manager</option>
+                                </select>
+                                <span x-show="!isAdmin()" x-text="roleLabel(ts.role)"></span>
+                              </td>
+                              <td class="py-2 text-right">
+                                <button x-show="isAdmin()" @click="unassign(ts)" class="text-xs text-red-600 hover:underline">Remove</button>
+                              </td>
+                            </tr>
+                          </template>
+                        </tbody>
+                      </table>
+
+                      <!-- Assign staff form -->
+                      <template x-if="showAddStaff">
+                        <div class="mt-4 p-4 bg-slate-50 rounded-lg">
+                          <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+                            <div>
+                              <label class="block text-xs font-medium mb-1">Staff member</label>
+                              <select x-model="selectedStaffId" class="w-full border border-slate-300 rounded px-2 py-1.5 text-sm">
+                                <template x-for="s in unassignedStaff()" :key="s.id">
+                                  <option :value="s.id" x-text="s.full_name + ' (' + s.email + ')'"></option>
+                                </template>
+                              </select>
+                            </div>
+                            <div>
+                              <label class="block text-xs font-medium mb-1">Role</label>
+                              <select x-model="selectedRole" class="w-full border border-slate-300 rounded px-2 py-1.5 text-sm">
+                                <option value="head_coach">Head Coach</option>
+                                <option value="assistant_coach">Assistant Coach</option>
+                                <option value="team_manager">Team Manager</option>
+                              </select>
+                            </div>
+                            <div class="flex gap-2">
+                              <button @click="assignStaff()"
+                                class="bg-brand-600 hover:bg-brand-700 text-white text-sm rounded px-3 py-1.5">Assign</button>
+                              <button @click="showAddStaff = false"
+                                class="text-sm text-slate-600 px-3 py-1.5">Cancel</button>
+                            </div>
+                          </div>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </template>
+
+            <!-- ========== ROSTER (stub) ========== -->
             <template x-if="route === 'roster'">
               <div>
                 <h1 class="text-2xl font-bold mb-1">Roster</h1>
                 <p class="text-sm text-slate-500 mb-6">Players, families, contacts — coming in step 4.</p>
-                <div class="bg-white border border-slate-200 rounded-xl p-8 text-center text-slate-400">
-                  Stub view
-                </div>
+                <div class="bg-white border border-slate-200 rounded-xl p-8 text-center text-slate-400">Stub view</div>
               </div>
             </template>
 
+            <!-- ========== GAMES (stub) ========== -->
             <template x-if="route === 'games'">
               <div>
                 <h1 class="text-2xl font-bold mb-1">Games</h1>
                 <p class="text-sm text-slate-500 mb-6">Schedule + Game Week workflow — coming in step 6.</p>
-                <div class="bg-white border border-slate-200 rounded-xl p-8 text-center text-slate-400">
-                  Stub view
-                </div>
+                <div class="bg-white border border-slate-200 rounded-xl p-8 text-center text-slate-400">Stub view</div>
               </div>
             </template>
 
+            <!-- ========== SETTINGS ========== -->
             <template x-if="route === 'settings'">
-              <div>
+              <div x-data="settingsView(currentClub, currentStaff)" x-init="init()">
                 <h1 class="text-2xl font-bold mb-1">Settings</h1>
-                <p class="text-sm text-slate-500 mb-6">Club, staff, comm templates — coming in step 3.</p>
-                <div class="bg-white border border-slate-200 rounded-xl p-8 text-center text-slate-400">
-                  Stub view
+                <p class="text-sm text-slate-500 mb-6">Club name and staff roster.</p>
+
+                <div class="border-b border-slate-200 mb-6 flex gap-6">
+                  <button @click="tab = 'club'"
+                    :class="tab === 'club' ? 'border-brand-600 text-brand-700' : 'border-transparent text-slate-600'"
+                    class="pb-2 border-b-2 text-sm font-medium">Club</button>
+                  <button @click="tab = 'staff'"
+                    :class="tab === 'staff' ? 'border-brand-600 text-brand-700' : 'border-transparent text-slate-600'"
+                    class="pb-2 border-b-2 text-sm font-medium">Staff</button>
                 </div>
+
+                <p x-show="error" x-text="error" class="text-sm text-red-600 mb-3"></p>
+                <div x-show="loading" class="text-sm text-slate-500">Loading…</div>
+
+                <!-- CLUB TAB -->
+                <template x-if="!loading && tab === 'club'">
+                  <div class="bg-white border border-slate-200 rounded-xl p-6 max-w-xl">
+                    <h2 class="text-lg font-semibold mb-4">Club details</h2>
+                    <fieldset :disabled="!isAdmin()" class="space-y-4">
+                      <div>
+                        <label class="block text-sm font-medium mb-1">Club name</label>
+                        <input x-model="clubName" class="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                      </div>
+                      <button x-show="isAdmin()" @click="saveClub()" :disabled="saving"
+                        class="bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm rounded-lg px-4 py-2 font-medium">
+                        <span x-text="saving ? 'Saving…' : 'Save'"></span>
+                      </button>
+                      <p x-show="!isAdmin()" class="text-xs text-slate-500">Only club admins can edit these settings.</p>
+                    </fieldset>
+                  </div>
+                </template>
+
+                <!-- STAFF TAB -->
+                <template x-if="!loading && tab === 'staff'">
+                  <div>
+                    <div class="flex items-center justify-between mb-4">
+                      <h2 class="text-lg font-semibold">Staff</h2>
+                      <button x-show="isAdmin()" @click="startAdd()"
+                        class="bg-brand-600 hover:bg-brand-700 text-white text-sm rounded-lg px-4 py-2 font-medium">
+                        + Invite staff
+                      </button>
+                    </div>
+
+                    <div class="bg-white border border-slate-200 rounded-xl overflow-hidden mb-4">
+                      <table class="w-full text-sm">
+                        <thead class="bg-slate-50 text-xs uppercase text-slate-600">
+                          <tr>
+                            <th class="text-left p-3">Name</th>
+                            <th class="text-left p-3">Email</th>
+                            <th class="text-left p-3">Status</th>
+                            <th class="text-left p-3">Admin</th>
+                            <th class="text-right p-3"></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <template x-for="s in staffList" :key="s.id">
+                            <tr class="border-t border-slate-100">
+                              <td class="p-3 font-medium" x-text="s.full_name"></td>
+                              <td class="p-3 text-slate-600" x-text="s.email"></td>
+                              <td class="p-3 text-xs text-slate-500" x-text="s.user_id ? 'Active' : 'Invited (not yet signed in)'"></td>
+                              <td class="p-3">
+                                <button x-show="isAdmin()" @click="toggleAdmin(s)"
+                                  :class="s.is_admin ? 'bg-brand-100 text-brand-700' : 'bg-slate-100 text-slate-500'"
+                                  class="text-xs rounded px-2 py-1" x-text="s.is_admin ? 'Admin' : 'Member'"></button>
+                                <span x-show="!isAdmin()" class="text-xs text-slate-500" x-text="s.is_admin ? 'Yes' : 'No'"></span>
+                              </td>
+                              <td class="p-3 text-right">
+                                <button x-show="isAdmin()" @click="removeStaff(s)" class="text-xs text-red-600 hover:underline">Remove</button>
+                              </td>
+                            </tr>
+                          </template>
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <!-- Add staff form -->
+                    <template x-if="showAddStaff">
+                      <div class="bg-white border border-slate-200 rounded-xl p-6 max-w-2xl mb-4">
+                        <h3 class="text-base font-semibold mb-4">Invite a staff member</h3>
+                        <div class="space-y-3 mb-4">
+                          <div>
+                            <label class="block text-sm font-medium mb-1">Full name *</label>
+                            <input x-model="newStaff.full_name" placeholder="Jane Smith"
+                              class="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                          </div>
+                          <div>
+                            <label class="block text-sm font-medium mb-1">Email *</label>
+                            <input type="email" x-model="newStaff.email" placeholder="jane@example.com"
+                              class="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                          </div>
+                          <label class="flex items-center gap-2 text-sm">
+                            <input type="checkbox" x-model="newStaff.is_admin" />
+                            Make this person a club admin
+                          </label>
+                        </div>
+                        <div class="bg-amber-50 border border-amber-200 rounded p-3 text-xs text-amber-800 mb-4">
+                          <strong>Heads up:</strong> after you add them, copy this URL into a message and send it to them.
+                          They sign in with the same email — they'll then have access automatically.
+                          <div class="mt-2 font-mono break-all bg-white p-2 rounded" x-text="inviteUrl()"></div>
+                        </div>
+                        <div class="flex gap-2">
+                          <button @click="addStaff()" :disabled="saving"
+                            class="bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm rounded-lg px-4 py-2 font-medium">
+                            <span x-text="saving ? 'Adding…' : 'Add staff'"></span>
+                          </button>
+                          <button @click="showAddStaff = false" class="text-sm text-slate-600 px-4 py-2">Cancel</button>
+                        </div>
+                      </div>
+                    </template>
+                  </div>
+                </template>
               </div>
             </template>
 
@@ -281,7 +596,11 @@
 
   </div>
 
-  <!-- App logic -->
+  <!-- App scripts: order matters — data layer first, then app, then views -->
+  <script src="js/lib/data.js"></script>
   <script src="js/app.js"></script>
+  <script src="js/views/settings.js"></script>
+  <script src="js/views/teams.js"></script>
+  <script src="js/views/team-detail.js"></script>
 </body>
 </html>
