@@ -22,10 +22,11 @@ function app() {
 
     // login form
     loginEmail: '',
-    sending: false,
-    sendingProvider: null,    // 'apple' | 'microsoft' | 'google' while OAuth redirect is in flight
+    loginPassword: '',
+    signing: false,           // true while password sign-in is in flight
+    sending: false,           // true while magic-link send is in flight
     magicLinkSent: false,
-    showEmailFallback: false, // collapse magic-link form by default; OAuth is primary
+    showMagicLinkForm: false, // toggled when user clicks "Send me a magic link instead"
     loginError: '',
 
     // navigation
@@ -111,36 +112,30 @@ function app() {
 
     // ---- auth actions ----
 
-    // OAuth sign-in (Apple / Microsoft / Google).
-    // Provider must be enabled in Supabase Dashboard → Authentication → Providers
-    // and the app's URL must be in the redirect allow-list.
-    //   provider: 'apple' | 'azure' | 'google'
-    //   ('azure' is Supabase's name for the Microsoft/Entra ID provider)
-    async signInWithProvider(provider) {
+    // Email + password sign-in (primary path).
+    // For first-time users: sign in with magic link first, then optionally
+    // set a password from Settings (or via Supabase Dashboard for now).
+    async signInWithPassword() {
       this.loginError = '';
-      this.sendingProvider = provider;
+      this.signing = true;
       try {
         const sb = window.GTWData.sb();
-        // Per-provider scopes — keep minimal; we only need the email claim
-        // for the auto_attach_staff_on_signup() trigger to match invitations.
-        const scopes = {
-          apple: 'email',
-          azure: 'email openid profile',
-          google: 'email profile'
-        }[provider] || 'email';
-
-        const { error } = await sb.auth.signInWithOAuth({
-          provider,
-          options: {
-            redirectTo: window.location.origin + window.location.pathname,
-            scopes
-          }
+        const { error } = await sb.auth.signInWithPassword({
+          email: this.loginEmail.trim(),
+          password: this.loginPassword
         });
         if (error) throw error;
-        // Browser is now redirecting to the provider; nothing else to do here.
+        // onAuthStateChange handler in init() will load staff context and
+        // flip the UI to the dashboard.
       } catch (err) {
-        this.loginError = err.message || `Failed to start ${provider} sign-in.`;
-        this.sendingProvider = null;
+        // Common case: password not yet set on this account. Steer the user
+        // to the magic-link path rather than letting them stew on the error.
+        const msg = err.message || 'Sign-in failed.';
+        this.loginError = /invalid login credentials/i.test(msg)
+          ? 'Email or password incorrect. If this is your first sign-in, use the magic link link below.'
+          : msg;
+      } finally {
+        this.signing = false;
       }
     },
 
@@ -169,8 +164,9 @@ function app() {
       await sb.auth.signOut();
       this.session = null;
       this.magicLinkSent = false;
-      this.showEmailFallback = false;
+      this.showMagicLinkForm = false;
       this.loginEmail = '';
+      this.loginPassword = '';
       window.location.hash = '#/dashboard';
     }
   };
