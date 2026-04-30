@@ -229,7 +229,6 @@
                       <tr>
                         <th class="text-left p-3">Team</th>
                         <th class="text-left p-3">Age group</th>
-                        <th class="text-left p-3">Season</th>
                         <th class="text-left p-3">Format</th>
                         <th class="text-left p-3">Rule mode</th>
                         <th class="text-right p-3"></th>
@@ -242,7 +241,6 @@
                             <a href="#" @click.prevent="open(t)" class="text-brand-700 hover:underline" x-text="t.name"></a>
                           </td>
                           <td class="p-3 text-slate-600" x-text="t.age_group || '—'"></td>
-                          <td class="p-3 text-slate-600" x-text="t.season || '—'"></td>
                           <td class="p-3 text-slate-600" x-text="formatLabel(t)"></td>
                           <td class="p-3 text-slate-600" x-text="ruleLabel(t)"></td>
                           <td class="p-3 text-right">
@@ -269,11 +267,6 @@
                         <div>
                           <label class="block text-sm font-medium mb-1">Age group</label>
                           <input x-model="newTeam.age_group" placeholder="U14"
-                            class="w-full border border-slate-300 rounded-lg px-3 py-2" />
-                        </div>
-                        <div>
-                          <label class="block text-sm font-medium mb-1">Season</label>
-                          <input x-model="newTeam.season" placeholder="2026 Winter"
                             class="w-full border border-slate-300 rounded-lg px-3 py-2" />
                         </div>
                         <div>
@@ -323,8 +316,7 @@
                     <div>
                       <h1 class="text-2xl font-bold" x-text="team.name"></h1>
                       <div class="text-sm text-slate-500">
-                        <span x-text="team.age_group || 'No age group'"></span> ·
-                        <span x-text="team.season || 'No season'"></span>
+                        <span x-text="team.age_group || 'No age group'"></span>
                       </div>
                     </div>
 
@@ -342,10 +334,6 @@
                           <div>
                             <label class="block text-sm font-medium mb-1">Age group</label>
                             <input x-model="teamForm.age_group" class="w-full border border-slate-300 rounded-lg px-3 py-2" />
-                          </div>
-                          <div>
-                            <label class="block text-sm font-medium mb-1">Season</label>
-                            <input x-model="teamForm.season" class="w-full border border-slate-300 rounded-lg px-3 py-2" />
                           </div>
                           <div>
                             <label class="block text-sm font-medium mb-1">Rule mode</label>
@@ -453,12 +441,436 @@
               </div>
             </template>
 
-            <!-- ========== ROSTER (stub) ========== -->
+            <!-- ========== ROSTER ========== -->
             <template x-if="route === 'roster'">
-              <div>
-                <h1 class="text-2xl font-bold mb-1">Roster</h1>
-                <p class="text-sm text-slate-500 mb-6">Players, families, contacts — coming in step 4.</p>
-                <div class="bg-white border border-slate-200 rounded-xl p-8 text-center text-slate-400">Stub view</div>
+              <div x-data="rosterView(currentClub, currentStaff)" x-init="init()">
+
+                <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
+                  <div>
+                    <h1 class="text-2xl font-bold">Roster</h1>
+                    <p class="text-sm text-slate-500">Players, families, contacts.</p>
+                  </div>
+                  <div x-show="teams.length > 0">
+                    <label class="block text-xs font-medium text-slate-500 mb-1">Team</label>
+                    <select x-model="selectedTeamId" @change="onTeamChange()"
+                      class="border border-slate-300 rounded-lg px-3 py-2 text-sm">
+                      <template x-for="t in teams" :key="t.id">
+                        <option :value="t.id" x-text="t.name"></option>
+                      </template>
+                    </select>
+                  </div>
+                </div>
+
+                <p x-show="error" x-text="error" class="text-sm text-red-600 mb-3"></p>
+                <div x-show="loading" class="text-sm text-slate-500">Loading…</div>
+
+                <!-- No teams message -->
+                <div x-show="!loading && teams.length === 0"
+                  class="bg-white border border-slate-200 rounded-xl p-8 text-center">
+                  <p class="text-slate-600 mb-2">No teams to manage.</p>
+                  <p class="text-sm text-slate-500">Go to Teams to create one (admin only) or ask your club admin to assign you.</p>
+                </div>
+
+                <template x-if="!loading && selectedTeamId">
+                  <div>
+                    <!-- Tabs -->
+                    <div class="border-b border-slate-200 mb-6 flex gap-6">
+                      <button @click="tab = 'players'"
+                        :class="tab === 'players' ? 'border-brand-600 text-brand-700' : 'border-transparent text-slate-600'"
+                        class="pb-2 border-b-2 text-sm font-medium">
+                        Players (<span x-text="roster.length"></span>)
+                      </button>
+                      <button @click="tab = 'families'"
+                        :class="tab === 'families' ? 'border-brand-600 text-brand-700' : 'border-transparent text-slate-600'"
+                        class="pb-2 border-b-2 text-sm font-medium">
+                        Families (<span x-text="families.length"></span>)
+                      </button>
+                    </div>
+
+                    <!-- ==================== PLAYERS TAB ==================== -->
+                    <template x-if="tab === 'players'">
+                      <div>
+                        <div class="flex flex-wrap justify-between items-center gap-2 mb-4">
+                          <h2 class="text-base font-semibold" x-text="selectedTeamName() + ' — Roster'"></h2>
+                          <div class="flex gap-2" x-show="canEdit()">
+                            <button x-show="unrosteredClubPlayers().length > 0" @click="startAddExisting()"
+                              class="bg-white border border-brand-600 text-brand-700 hover:bg-brand-50 text-sm rounded-lg px-3 py-2 font-medium">
+                              + From club
+                            </button>
+                            <button @click="startNewPlayer()"
+                              class="bg-brand-600 hover:bg-brand-700 text-white text-sm rounded-lg px-4 py-2 font-medium">
+                              + New player
+                            </button>
+                          </div>
+                        </div>
+
+                        <p class="text-xs text-slate-500 mb-4">
+                          Players are stored at the club level. <em>Remove from team</em> takes them off this roster but keeps them in the club; <em>Delete from club</em> removes them entirely (and from any other team they're on).
+                        </p>
+
+                        <!-- Empty state -->
+                        <div x-show="roster.length === 0 && !showNewPlayerForm && !showExistingPlayerForm"
+                          class="bg-white border border-slate-200 rounded-xl p-8 text-center text-slate-500">
+                          No players on this team yet. Click "+ New player" to add one.
+                        </div>
+
+                        <!-- Roster table -->
+                        <div x-show="roster.length > 0" class="bg-white border border-slate-200 rounded-xl overflow-hidden">
+                          <table class="w-full text-sm">
+                            <thead class="bg-slate-50 text-xs uppercase text-slate-600">
+                              <tr>
+                                <th class="text-left p-3 w-12">#</th>
+                                <th class="text-left p-3">Name</th>
+                                <th class="text-left p-3">Age</th>
+                                <th class="text-left p-3">Positions</th>
+                                <th class="text-left p-3">Family</th>
+                                <th class="text-left p-3">Status</th>
+                                <th class="text-right p-3"></th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              <template x-for="m in roster" :key="m.id">
+                                <tr class="border-t border-slate-100 hover:bg-brand-50">
+                                  <td class="p-3 font-mono text-slate-600" x-text="m.jersey_no ?? '—'"></td>
+                                  <td class="p-3">
+                                    <div class="font-medium" x-text="m.player?.full_name"></div>
+                                    <template x-if="otherTeams(m.player).length > 0">
+                                      <div class="text-[10px] text-brand-600 mt-0.5" x-text="'Also on: ' + otherTeams(m.player).join(', ')"></div>
+                                    </template>
+                                  </td>
+                                  <td class="p-3 text-slate-600" x-text="age(m.player)"></td>
+                                  <td class="p-3 text-slate-600" x-text="positionsLabel(m)"></td>
+                                  <td class="p-3 text-slate-600" x-text="m.player?.family?.family_name || '—'"></td>
+                                  <td class="p-3">
+                                    <span :class="m.is_active ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-500'"
+                                      class="text-xs rounded px-2 py-0.5"
+                                      x-text="m.is_active ? 'Active' : 'Inactive'"></span>
+                                  </td>
+                                  <td class="p-3 text-right whitespace-nowrap">
+                                    <button x-show="canEdit()" @click="startEditMembership(m)" class="text-xs text-brand-700 hover:underline mr-2">Edit</button>
+                                    <button x-show="canEdit()" @click="removeFromTeam(m)" class="text-xs text-amber-600 hover:underline mr-2">Remove from team</button>
+                                    <button x-show="canEdit()" @click="deletePlayerFromClub(m)" class="text-xs text-red-600 hover:underline">Delete from club</button>
+                                  </td>
+                                </tr>
+                              </template>
+                            </tbody>
+                          </table>
+                        </div>
+
+                        <!-- ===== NEW PLAYER FORM ===== -->
+                        <template x-if="showNewPlayerForm">
+                          <div class="mt-6 bg-white border border-slate-200 rounded-xl p-6">
+                            <h3 class="text-lg font-semibold mb-4">New player</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                              <div>
+                                <label class="block text-sm font-medium mb-1">Full name *</label>
+                                <input x-model="newPlayerForm.full_name" placeholder="Alex Smith"
+                                  class="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                              </div>
+                              <div>
+                                <label class="block text-sm font-medium mb-1">Date of birth</label>
+                                <input type="date" x-model="newPlayerForm.dob"
+                                  class="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                              </div>
+                              <div>
+                                <label class="block text-sm font-medium mb-1">Family</label>
+                                <select x-model="newPlayerForm.family_id"
+                                  class="w-full border border-slate-300 rounded-lg px-3 py-2">
+                                  <option value="">— No family link —</option>
+                                  <template x-for="f in families" :key="f.id">
+                                    <option :value="f.id" x-text="f.family_name"></option>
+                                  </template>
+                                </select>
+                              </div>
+                              <div>
+                                <label class="block text-sm font-medium mb-1">Photo URL (optional)</label>
+                                <input x-model="newPlayerForm.photo_url" placeholder="https://..."
+                                  class="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                              </div>
+                            </div>
+                            <div class="border-t border-slate-200 pt-4 mb-4">
+                              <h4 class="text-sm font-semibold text-slate-700 mb-3" x-text="'On ' + selectedTeamName()"></h4>
+                              <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                <div>
+                                  <label class="block text-sm font-medium mb-1">Jersey number</label>
+                                  <input type="number" min="0" max="999" x-model="newPlayerForm.jersey_no"
+                                    class="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                                </div>
+                                <div>
+                                  <label class="block text-sm font-medium mb-1">Active on this team</label>
+                                  <label class="flex items-center gap-2 text-sm h-10">
+                                    <input type="checkbox" x-model="newPlayerForm.is_active" />
+                                    Include in rotations
+                                  </label>
+                                </div>
+                                <div class="md:col-span-2">
+                                  <label class="block text-sm font-medium mb-1">Positions</label>
+                                  <div class="flex flex-wrap gap-2">
+                                    <template x-for="pos in POSITION_OPTIONS" :key="pos">
+                                      <label
+                                        :class="newPlayerForm.positions.includes(pos) ? 'bg-brand-100 text-brand-700 border-brand-400' : 'bg-white text-slate-600 border-slate-300'"
+                                        class="border rounded-lg px-3 py-1.5 text-sm cursor-pointer">
+                                        <input type="checkbox" :checked="newPlayerForm.positions.includes(pos)"
+                                          @change="togglePosition(newPlayerForm, pos)" class="hidden" />
+                                        <span x-text="pos"></span>
+                                      </label>
+                                    </template>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                            <div class="flex gap-2">
+                              <button @click="saveNewPlayer()"
+                                class="bg-brand-600 hover:bg-brand-700 text-white text-sm rounded-lg px-4 py-2 font-medium">
+                                Add to club + roster
+                              </button>
+                              <button @click="cancelAllForms()" class="text-sm text-slate-600 px-4 py-2">Cancel</button>
+                            </div>
+                          </div>
+                        </template>
+
+                        <!-- ===== ADD EXISTING (FROM CLUB) FORM ===== -->
+                        <template x-if="showExistingPlayerForm">
+                          <div class="mt-6 bg-white border border-slate-200 rounded-xl p-6">
+                            <h3 class="text-lg font-semibold mb-4">Add existing club player to this team</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                              <div class="md:col-span-2">
+                                <label class="block text-sm font-medium mb-1">Player</label>
+                                <select x-model="existingPlayerForm.player_id"
+                                  class="w-full border border-slate-300 rounded-lg px-3 py-2">
+                                  <template x-for="p in unrosteredClubPlayers()" :key="p.id">
+                                    <option :value="p.id" x-text="p.full_name + (p.family ? ' — ' + p.family.family_name : '')"></option>
+                                  </template>
+                                </select>
+                              </div>
+                              <div>
+                                <label class="block text-sm font-medium mb-1">Jersey number on this team</label>
+                                <input type="number" min="0" max="999" x-model="existingPlayerForm.jersey_no"
+                                  class="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                              </div>
+                              <div>
+                                <label class="block text-sm font-medium mb-1">Active on this team</label>
+                                <label class="flex items-center gap-2 text-sm h-10">
+                                  <input type="checkbox" x-model="existingPlayerForm.is_active" />
+                                  Include in rotations
+                                </label>
+                              </div>
+                              <div class="md:col-span-2">
+                                <label class="block text-sm font-medium mb-1">Positions on this team</label>
+                                <div class="flex flex-wrap gap-2">
+                                  <template x-for="pos in POSITION_OPTIONS" :key="pos">
+                                    <label
+                                      :class="existingPlayerForm.positions.includes(pos) ? 'bg-brand-100 text-brand-700 border-brand-400' : 'bg-white text-slate-600 border-slate-300'"
+                                      class="border rounded-lg px-3 py-1.5 text-sm cursor-pointer">
+                                      <input type="checkbox" :checked="existingPlayerForm.positions.includes(pos)"
+                                        @change="togglePosition(existingPlayerForm, pos)" class="hidden" />
+                                      <span x-text="pos"></span>
+                                    </label>
+                                  </template>
+                                </div>
+                              </div>
+                            </div>
+                            <div class="flex gap-2">
+                              <button @click="saveAddExisting()"
+                                class="bg-brand-600 hover:bg-brand-700 text-white text-sm rounded-lg px-4 py-2 font-medium">
+                                Add to roster
+                              </button>
+                              <button @click="cancelAllForms()" class="text-sm text-slate-600 px-4 py-2">Cancel</button>
+                            </div>
+                          </div>
+                        </template>
+
+                        <!-- ===== EDIT MEMBERSHIP + PLAYER FORM ===== -->
+                        <template x-if="editingMembership">
+                          <div class="mt-6 bg-white border border-slate-200 rounded-xl p-6">
+                            <h3 class="text-lg font-semibold mb-1">Edit player</h3>
+                            <p class="text-xs text-slate-500 mb-4">Top section is club-level (applies everywhere). Bottom section is for this team only.</p>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                              <div>
+                                <label class="block text-sm font-medium mb-1">Full name *</label>
+                                <input x-model="editForm.full_name" class="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                              </div>
+                              <div>
+                                <label class="block text-sm font-medium mb-1">Date of birth</label>
+                                <input type="date" x-model="editForm.dob" class="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                              </div>
+                              <div>
+                                <label class="block text-sm font-medium mb-1">Family</label>
+                                <select x-model="editForm.family_id" class="w-full border border-slate-300 rounded-lg px-3 py-2">
+                                  <option value="">— No family link —</option>
+                                  <template x-for="f in families" :key="f.id">
+                                    <option :value="f.id" x-text="f.family_name"></option>
+                                  </template>
+                                </select>
+                              </div>
+                              <div>
+                                <label class="block text-sm font-medium mb-1">Photo URL</label>
+                                <input x-model="editForm.photo_url" class="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                              </div>
+                            </div>
+                            <div class="border-t border-slate-200 pt-4 mb-4">
+                              <h4 class="text-sm font-semibold text-slate-700 mb-3" x-text="'On ' + selectedTeamName()"></h4>
+                              <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                <div>
+                                  <label class="block text-sm font-medium mb-1">Jersey number</label>
+                                  <input type="number" min="0" max="999" x-model="editForm.jersey_no"
+                                    class="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                                </div>
+                                <div>
+                                  <label class="block text-sm font-medium mb-1">Active on this team</label>
+                                  <label class="flex items-center gap-2 text-sm h-10">
+                                    <input type="checkbox" x-model="editForm.is_active" />
+                                    Include in rotations
+                                  </label>
+                                </div>
+                                <div class="md:col-span-2">
+                                  <label class="block text-sm font-medium mb-1">Positions</label>
+                                  <div class="flex flex-wrap gap-2">
+                                    <template x-for="pos in POSITION_OPTIONS" :key="pos">
+                                      <label
+                                        :class="editForm.positions.includes(pos) ? 'bg-brand-100 text-brand-700 border-brand-400' : 'bg-white text-slate-600 border-slate-300'"
+                                        class="border rounded-lg px-3 py-1.5 text-sm cursor-pointer">
+                                        <input type="checkbox" :checked="editForm.positions.includes(pos)"
+                                          @change="togglePosition(editForm, pos)" class="hidden" />
+                                        <span x-text="pos"></span>
+                                      </label>
+                                    </template>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                            <div class="flex gap-2">
+                              <button @click="saveEdit()"
+                                class="bg-brand-600 hover:bg-brand-700 text-white text-sm rounded-lg px-4 py-2 font-medium">
+                                Save changes
+                              </button>
+                              <button @click="cancelAllForms()" class="text-sm text-slate-600 px-4 py-2">Cancel</button>
+                            </div>
+                          </div>
+                        </template>
+                      </div>
+                    </template>
+
+                    <!-- ==================== FAMILIES TAB ==================== -->
+                    <template x-if="tab === 'families'">
+                      <div>
+                        <div class="flex justify-between items-center mb-4">
+                          <div>
+                            <h2 class="text-base font-semibold">Families (club-wide)</h2>
+                            <p class="text-xs text-slate-500">Families and contacts are stored at the club level — one source of truth across all teams.</p>
+                          </div>
+                          <button x-show="canEdit()" @click="startNewFamily()"
+                            class="bg-brand-600 hover:bg-brand-700 text-white text-sm rounded-lg px-4 py-2 font-medium">
+                            + Add family
+                          </button>
+                        </div>
+
+                        <!-- Empty state -->
+                        <div x-show="families.length === 0 && !showFamilyForm"
+                          class="bg-white border border-slate-200 rounded-xl p-8 text-center text-slate-500">
+                          No families yet. Add families before linking them to players.
+                        </div>
+
+                        <!-- Family form -->
+                        <template x-if="showFamilyForm">
+                          <div class="mb-6 bg-white border border-slate-200 rounded-xl p-6">
+                            <h3 class="text-base font-semibold mb-3" x-text="editingFamily ? 'Edit family' : 'New family'"></h3>
+                            <div class="space-y-3 mb-4">
+                              <div>
+                                <label class="block text-sm font-medium mb-1">Family name *</label>
+                                <input x-model="familyForm.family_name" placeholder="Smith"
+                                  class="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                              </div>
+                              <div>
+                                <label class="block text-sm font-medium mb-1">Notes</label>
+                                <textarea x-model="familyForm.notes" rows="2"
+                                  class="w-full border border-slate-300 rounded-lg px-3 py-2"></textarea>
+                              </div>
+                            </div>
+                            <div class="flex gap-2">
+                              <button @click="saveFamily()"
+                                class="bg-brand-600 hover:bg-brand-700 text-white text-sm rounded-lg px-4 py-2 font-medium">
+                                <span x-text="editingFamily ? 'Save' : 'Add family'"></span>
+                              </button>
+                              <button @click="cancelFamilyForm()" class="text-sm text-slate-600 px-4 py-2">Cancel</button>
+                            </div>
+                          </div>
+                        </template>
+
+                        <!-- Family cards -->
+                        <div class="space-y-3">
+                          <template x-for="f in families" :key="f.id">
+                            <div class="bg-white border border-slate-200 rounded-xl p-5">
+                              <div class="flex items-start justify-between mb-3">
+                                <div>
+                                  <div class="font-semibold" x-text="f.family_name"></div>
+                                  <div x-show="f.notes" class="text-xs text-slate-500 mt-0.5" x-text="f.notes"></div>
+                                </div>
+                                <div class="flex gap-3">
+                                  <button x-show="canEdit()" @click="startEditFamily(f)" class="text-xs text-brand-700 hover:underline">Edit</button>
+                                  <button x-show="canEdit()" @click="deleteFamily(f)" class="text-xs text-red-600 hover:underline">Delete</button>
+                                </div>
+                              </div>
+
+                              <!-- Contacts list -->
+                              <div class="border-t border-slate-100 pt-3">
+                                <div class="text-xs uppercase text-slate-500 mb-2">Contacts</div>
+                                <div x-show="(f.family_contacts || []).length === 0" class="text-sm text-slate-400">No contacts yet.</div>
+                                <div class="space-y-1.5">
+                                  <template x-for="c in (f.family_contacts || [])" :key="c.id">
+                                    <div class="flex items-center gap-3 text-sm">
+                                      <button @click="togglePrimary(c, f)"
+                                        :class="c.is_primary ? 'text-amber-500' : 'text-slate-300 hover:text-amber-400'"
+                                        title="Toggle primary contact (only one per family)">★</button>
+                                      <span class="font-medium" x-text="c.name"></span>
+                                      <span x-show="c.relationship" class="text-xs text-slate-500" x-text="'(' + c.relationship + ')'"></span>
+                                      <span x-show="c.phone" class="text-slate-600" x-text="c.phone"></span>
+                                      <span x-show="c.email" class="text-slate-500 text-xs" x-text="c.email"></span>
+                                      <button x-show="canEdit()" @click="removeContact(c.id)" class="ml-auto text-xs text-red-600 hover:underline">Remove</button>
+                                    </div>
+                                  </template>
+                                </div>
+
+                                <!-- Add contact button or form -->
+                                <template x-if="showContactForm === f.id">
+                                  <div class="mt-3 p-3 bg-slate-50 rounded-lg space-y-2">
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                      <input x-model="contactForm.name" placeholder="Name *"
+                                        class="border border-slate-300 rounded px-2 py-1.5 text-sm" />
+                                      <select x-model="contactForm.relationship"
+                                        class="border border-slate-300 rounded px-2 py-1.5 text-sm">
+                                        <option value="">— Relationship —</option>
+                                        <template x-for="r in RELATIONSHIP_OPTIONS" :key="r">
+                                          <option :value="r" x-text="r"></option>
+                                        </template>
+                                      </select>
+                                      <input x-model="contactForm.phone" placeholder="Phone"
+                                        class="border border-slate-300 rounded px-2 py-1.5 text-sm" />
+                                      <input type="email" x-model="contactForm.email" placeholder="Email"
+                                        class="border border-slate-300 rounded px-2 py-1.5 text-sm" />
+                                    </div>
+                                    <label class="flex items-center gap-2 text-xs text-slate-600">
+                                      <input type="checkbox" x-model="contactForm.is_primary" />
+                                      Primary contact for this family
+                                    </label>
+                                    <div class="flex gap-2">
+                                      <button @click="saveContact()"
+                                        class="bg-brand-600 hover:bg-brand-700 text-white text-xs rounded px-3 py-1.5">Add contact</button>
+                                      <button @click="cancelContactForm()" class="text-xs text-slate-600 px-3 py-1.5">Cancel</button>
+                                    </div>
+                                  </div>
+                                </template>
+                                <template x-if="showContactForm !== f.id">
+                                  <button x-show="canEdit()" @click="startAddContact(f.id)" class="mt-3 text-xs text-brand-700 hover:underline">+ Add contact</button>
+                                </template>
+                              </div>
+                            </div>
+                          </template>
+                        </div>
+                      </div>
+                    </template>
+                  </div>
+                </template>
               </div>
             </template>
 
@@ -602,5 +1014,6 @@
   <script src="js/views/settings.js"></script>
   <script src="js/views/teams.js"></script>
   <script src="js/views/team-detail.js"></script>
+  <script src="js/views/roster.js"></script>
 </body>
 </html>

@@ -11,7 +11,6 @@ function teamsView(currentClub, currentStaff, onNavigate) {
     newTeam: {
       name: '',
       age_group: '',
-      season: '',
       rule_mode: 'equal_opportunity',
       game_format_periods: 2,
       game_format_minutes_per_period: 20
@@ -47,7 +46,6 @@ function teamsView(currentClub, currentStaff, onNavigate) {
       this.newTeam = {
         name: '',
         age_group: '',
-        season: '',
         rule_mode: 'equal_opportunity',
         game_format_periods: 2,
         game_format_minutes_per_period: 20
@@ -67,7 +65,6 @@ function teamsView(currentClub, currentStaff, onNavigate) {
           ...this.newTeam,
           name: this.newTeam.name.trim(),
           age_group: this.newTeam.age_group.trim(),
-          season: this.newTeam.season.trim(),
           game_format_periods: parseInt(this.newTeam.game_format_periods, 10),
           game_format_minutes_per_period: parseInt(this.newTeam.game_format_minutes_per_period, 10)
         });

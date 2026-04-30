@@ -1,86 +1,61 @@
 # Game Time Wizard
 
-Club basketball management tool — roster, ratings, rotation planning, bench duty, and weekly comms.
+Club basketball management — roster, ratings, rotation planning, bench duty, weekly comms.
+
+**Stack:** Supabase (Postgres + Auth + RLS) backend; vanilla HTML + Alpine.js + Tailwind frontend; GitHub Pages static hosting; no build step.
+
+---
+
+## 📚 Start here
+
+If you're new to this project (developer or PM stepping in), read in this order:
+
+1. **[HANDOVER.md](HANDOVER.md)** — onboarding doc, file map, build status, gotchas
+2. **[DECISIONS.md](DECISIONS.md)** — architecture decision record, every key choice and why
+3. **[SCOPE.md](SCOPE.md)** — current product scope, modules, what's deferred
+4. **[TESTING.md](TESTING.md)** — step-by-step deploy + verify guide for each build milestone
+5. **README.md** (this file) — quick reference + setup commands
+
+---
 
 ## Project layout
 
 ```
 Game Time Wizard/
-├── SCOPE.md              Approved v1 scope
-├── README.md             This file
-├── index.html            Frontend entry (single-page app)
-├── config.js.example     Template for Supabase config — copy to config.js
+├── HANDOVER.md              ← Read first if new to project
+├── DECISIONS.md             ← Architecture decision record
+├── SCOPE.md                 ← Current product scope
+├── TESTING.md               ← Per-step verification guide
+├── README.md                ← This file
+├── index.html               ← Single-page app shell + view templates
+├── config.js.example        ← Template for Supabase URL + anon key
 ├── .gitignore
 ├── css/
-│   └── app.css           Custom styles on top of Tailwind
+│   └── app.css              ← Custom styles (Tailwind handles 99%)
 ├── js/
-│   ├── app.js            Root Alpine component (auth, routing, navigation)
+│   ├── app.js               ← Root Alpine component (auth, routing)
 │   ├── lib/
-│   │   └── data.js       Supabase data access helpers
+│   │   └── data.js          ← All Supabase queries
 │   └── views/
-│       ├── settings.js   Club + Staff management
-│       ├── teams.js      Teams list + create
-│       └── team-detail.js Team settings + staff assignments
-└── db/
-    ├── schema.sql        Postgres tables, views, triggers
-    ├── rls.sql           Row-Level Security policies
-    ├── seed.sql          Default comm templates
-    └── migration_step3.sql  Adds pending-staff support + auto-attach trigger
+│       ├── settings.js      ← Club + Staff management
+│       ├── teams.js         ← Teams list + create
+│       ├── team-detail.js   ← Team settings + staff assignments
+│       └── roster.js        ← Players + Families (per team)
+├── db/
+│   ├── schema.sql           ← Canonical Postgres schema (fresh deploy)
+│   ├── rls.sql              ← Row-Level Security policies
+│   ├── seed.sql             ← Default comm templates
+│   ├── migration_step3.sql  ← Pending-staff + auto-attach trigger
+│   ├── migration_step4_5.sql ← Restructure: club-level players + memberships
+│   └── migration_step4_6.sql ← Cross-tool foundation: seasons, opponents, plays, prefs
+└── Prototype tools/
+    ├── project_citipointe_basketball.md  ← Sister tool spec
+    └── COURTSIDE_PROJECT_BRIEF.md        ← Sister tool spec (already-built PWA)
 ```
 
-## Stack
+---
 
-- **Backend:** Supabase (Postgres + Auth + RLS, free tier)
-- **Frontend:** Vanilla HTML + Alpine.js + Tailwind CSS + Supabase JS, all via CDN
-- **Build pipeline:** None. Plain static files.
-- **Deploy:** GitHub Pages
-
-## One-time setup
-
-### 1. Supabase
-
-1. Create a free project at <https://supabase.com>
-2. SQL editor → run `db/schema.sql`
-3. SQL editor → run `db/rls.sql`
-4. Bootstrap your club + admin staff row (after you've signed in once via the app to create your auth user):
-   ```sql
-   insert into clubs (name) values ('Your Club Name') returning id;
-   -- copy the returned UUID, then run:
-   insert into staff (user_id, club_id, full_name, email, is_admin)
-   values (auth.uid(), '<club-uuid>', 'Ming Lu', 'mingo.bne@gmail.com', true);
-   ```
-5. Run `db/seed.sql` with `:club_id` substituted to load default comm templates.
-6. **Auth settings** — in Supabase dashboard → Authentication → URL Configuration:
-   - Site URL: `https://<your-github-username>.github.io/<repo-name>/`
-   - Redirect URLs: add the same URL above
-
-### 2. Frontend config
-
-1. Copy `config.js.example` → `config.js`
-2. Fill in your Supabase Project URL and anon/public key (Settings → API in Supabase)
-3. The anon key is **safe to publish** — Row-Level Security protects your data
-
-### 3. Run locally (optional)
-
-Any static file server works. Easiest:
-```bash
-cd "Game Time Wizard"
-python3 -m http.server 8000
-# then open http://localhost:8000
-```
-
-### 4. Deploy to GitHub Pages
-
-1. Create a new GitHub repo (e.g. `game-time-wizard`)
-2. Push this folder's contents to the repo root
-3. **Decide on config.js handling:**
-   - **Option A (simple):** Remove `config.js` from `.gitignore`, commit it. The anon key is public-safe.
-   - **Option B (cleaner):** Use a GitHub Action to inject `config.js` from repo secrets at deploy time.
-4. Repo Settings → Pages → Source: `main` branch, folder `/(root)`
-5. Wait for the green checkmark; your app is live at `https://<user>.github.io/<repo>/`
-6. **Don't forget to update the Supabase Site URL + Redirect URLs (step 1.6) to match the live URL.**
-
-## Roles
+## Roles + permissions
 
 | Role | Permissions |
 |---|---|
@@ -91,18 +66,94 @@ python3 -m http.server 8000
 
 All staff can read everything in their own club.
 
-## Build status
+---
 
-See SCOPE.md for module scope. Build sequence tracked in TaskList.
+## Build status
 
 - [x] Schema + RLS + seed
 - [x] Frontend scaffold (auth, routing, app shell, stub views)
 - [x] Settings (Club + Staff), Teams, Team Detail with staff assignments
-- [ ] Roster module
-- [ ] Ratings module (11 sub-skills)
+- [x] Roster module (Players + Families + Contacts)
+- [x] Restructure: club-level players + per-team memberships, team-specific ratings
+- [x] Cross-tool data foundation (seasons, opponents, plays, player_preferences, game scores)
+- [ ] **Next: Ratings module** (11 sub-skills, per team)
 - [ ] Schedule + Game Week shell
 - [ ] Bench Duty engine
 - [ ] Equal Opportunity Rotation engine
 - [ ] Comms templates (3 messages per game)
 - [ ] Senior scratch pad
 - [ ] End-to-end run-through
+
+See `HANDOVER.md` for the full status table.
+
+---
+
+## One-time setup (fresh Supabase project)
+
+1. Create a free Supabase project at <https://supabase.com>
+2. SQL editor → run `db/schema.sql` (one shot — includes all tables, views, triggers in current canonical form)
+3. SQL editor → run `db/rls.sql`
+4. Sign in to the deployed app via magic link (this creates your `auth.users` row)
+5. Bootstrap your admin record:
+   ```sql
+   insert into clubs (name) values ('Your Club Name') returning id;
+   -- copy the returned UUID, then:
+   insert into staff (user_id, club_id, full_name, email, is_admin)
+   values (
+     (select id from auth.users where email = 'you@example.com'),
+     '<club-uuid>',
+     'Your Name',
+     'you@example.com',
+     true
+   );
+   ```
+6. Run `db/seed.sql` with `:club_id` substituted to load default comm templates
+7. **Auth settings** — Supabase dashboard → Authentication → URL Configuration:
+   - Site URL: `https://<your-github-username>.github.io/<repo-name>/`
+   - Redirect URLs: add the same URL above
+
+The migration files (`migration_step*.sql`) are for upgrading an existing database that was set up before later changes were made. A fresh deploy only needs `schema.sql` + `rls.sql` + `seed.sql`.
+
+---
+
+## Frontend config
+
+1. Copy `config.js.example` → `config.js`
+2. Fill in your Supabase Project URL and anon/public key (Settings → API in Supabase)
+3. The anon key is **safe to publish** — Row-Level Security protects your data
+
+---
+
+## Run locally
+
+```bash
+cd "Game Time Wizard"
+python3 -m http.server 8000
+# open http://localhost:8000
+```
+
+## Deploy to GitHub Pages
+
+1. Push folder contents to a public GitHub repo
+2. Repo Settings → Pages → Source: `main` branch, root folder
+3. Update Supabase Site URL + Redirect URLs to match the GH Pages URL
+
+---
+
+## Sister tools (planned integrations)
+
+This project is part of a three-tool ecosystem for the basketball club:
+
+| Tool | Status | Purpose |
+|---|---|---|
+| **Game Time Wizard** (this) | In build | Roster, ratings, rotations, duty, comms |
+| **CourtSide Stats** | Built (deployed) | Live in-game stat entry PWA. Will sync to this app's `plays` table once the bridge is built. |
+| **Citipointe Team Mgmt** | Spec only | Pre-season intake, age-group assignment, team formation drag-and-drop. |
+
+The data foundation (step 4.6) was specifically designed to support these integrations without future schema rework. See `DECISIONS.md` ADR-012 and ADR-013, plus `Prototype tools/` for the sister tool briefings.
+
+---
+
+## Owner
+
+Ming Lu — `mingo.bne@gmail.com`. Brisbane.

@@ -79,6 +79,11 @@ alter table duty_assignments     enable row level security;
 alter table rotation_plans       enable row level security;
 alter table comm_templates       enable row level security;
 alter table comm_messages        enable row level security;
+alter table team_memberships     enable row level security;
+alter table seasons              enable row level security;
+alter table opponents            enable row level security;
+alter table player_preferences   enable row level security;
+alter table plays                enable row level security;
 
 -- =========================================================================
 -- CLUBS
@@ -129,62 +134,58 @@ create policy team_staff_write on team_staff for all
   );
 
 -- =========================================================================
--- FAMILIES, FAMILY_CONTACTS, PLAYERS — read club-wide, write team-scoped
+-- FAMILIES, FAMILY_CONTACTS, PLAYERS — CLUB-LEVEL, any club staff can edit
 -- =========================================================================
 create policy families_read on families for select
-  using (
-    exists (select 1 from teams t where t.id = families.team_id and in_club(t.club_id))
-  );
+  using (in_club(club_id));
 
 create policy families_write on families for all
-  using (is_team_staff(team_id))
-  with check (is_team_staff(team_id));
+  using (in_club(club_id))
+  with check (in_club(club_id));
 
 create policy contacts_read on family_contacts for select
   using (
-    exists (
-      select 1 from families f
-      join teams t on t.id = f.team_id
-      where f.id = family_contacts.family_id and in_club(t.club_id)
-    )
+    exists (select 1 from families f where f.id = family_contacts.family_id and in_club(f.club_id))
   );
 
 create policy contacts_write on family_contacts for all
   using (
-    exists (select 1 from families f where f.id = family_contacts.family_id and is_team_staff(f.team_id))
+    exists (select 1 from families f where f.id = family_contacts.family_id and in_club(f.club_id))
   )
   with check (
-    exists (select 1 from families f where f.id = family_contacts.family_id and is_team_staff(f.team_id))
+    exists (select 1 from families f where f.id = family_contacts.family_id and in_club(f.club_id))
   );
 
 create policy players_read on players for select
-  using (
-    exists (select 1 from teams t where t.id = players.team_id and in_club(t.club_id))
-  );
+  using (in_club(club_id));
 
 create policy players_write on players for all
+  using (in_club(club_id))
+  with check (in_club(club_id));
+
+-- =========================================================================
+-- TEAM_MEMBERSHIPS — read club-wide, write by team staff
+-- =========================================================================
+create policy memberships_read on team_memberships for select
+  using (
+    exists (select 1 from teams t where t.id = team_memberships.team_id and in_club(t.club_id))
+  );
+
+create policy memberships_write on team_memberships for all
   using (is_team_staff(team_id))
   with check (is_team_staff(team_id));
 
 -- =========================================================================
--- RATINGS — read club-wide; write ONLY by Head Coach of the player's team
+-- RATINGS — read club-wide; write ONLY by Head Coach of THAT team
 -- =========================================================================
 create policy ratings_read on ratings for select
   using (
-    exists (
-      select 1 from players p
-      join teams t on t.id = p.team_id
-      where p.id = ratings.player_id and in_club(t.club_id)
-    )
+    exists (select 1 from teams t where t.id = ratings.team_id and in_club(t.club_id))
   );
 
 create policy ratings_write on ratings for all
-  using (
-    exists (select 1 from players p where p.id = ratings.player_id and is_head_coach(p.team_id))
-  )
-  with check (
-    exists (select 1 from players p where p.id = ratings.player_id and is_head_coach(p.team_id))
-  );
+  using (is_head_coach(team_id))
+  with check (is_head_coach(team_id));
 
 -- =========================================================================
 -- GAMES, AVAILABILITIES, ATTENDANCES, COACH_NOTES
@@ -334,6 +335,54 @@ create policy msg_write on comm_messages for all
   )
   with check (
     exists (select 1 from games g where g.id = comm_messages.game_id and is_team_staff(g.team_id))
+  );
+
+-- =========================================================================
+-- SEASONS — read club-wide; admin-only write
+-- =========================================================================
+create policy seasons_read on seasons for select using (in_club(club_id));
+create policy seasons_write on seasons for all
+  using (is_club_admin(club_id))
+  with check (is_club_admin(club_id));
+
+-- =========================================================================
+-- OPPONENTS — read club-wide; any club staff can write (used during game creation)
+-- =========================================================================
+create policy opponents_read on opponents for select using (in_club(club_id));
+create policy opponents_write on opponents for all
+  using (in_club(club_id))
+  with check (in_club(club_id));
+
+-- =========================================================================
+-- PLAYER_PREFERENCES — read club-wide; any club staff can write (intake data)
+-- =========================================================================
+create policy prefs_read on player_preferences for select
+  using (
+    exists (select 1 from players p where p.id = player_preferences.player_id and in_club(p.club_id))
+  );
+create policy prefs_write on player_preferences for all
+  using (
+    exists (select 1 from players p where p.id = player_preferences.player_id and in_club(p.club_id))
+  )
+  with check (
+    exists (select 1 from players p where p.id = player_preferences.player_id and in_club(p.club_id))
+  );
+
+-- =========================================================================
+-- PLAYS — read club-wide via game→team→club; write by team_staff of game's team
+-- =========================================================================
+create policy plays_read on plays for select
+  using (
+    exists (select 1 from games g
+            join teams t on t.id = g.team_id
+            where g.id = plays.game_id and in_club(t.club_id))
+  );
+create policy plays_write on plays for all
+  using (
+    exists (select 1 from games g where g.id = plays.game_id and is_team_staff(g.team_id))
+  )
+  with check (
+    exists (select 1 from games g where g.id = plays.game_id and is_team_staff(g.team_id))
   );
 
 -- =========================================================================

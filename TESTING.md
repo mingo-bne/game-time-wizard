@@ -228,3 +228,176 @@ Wait ~1 minute for GH Pages to redeploy.
 
 If all of that works, step 3 is complete. Tell me and I'll move to step 4 (Roster).
 
+---
+
+# Step 4 — Testing the Roster build
+
+No SQL migration needed for step 4 (the players/families/contacts tables already exist).
+
+## A. Re-deploy
+
+Upload the updated `index.html`, the new `js/views/roster.js`, and the updated `js/lib/data.js` to your GitHub repo.
+
+## B. Walk through
+
+1. Reload your live URL → click **Roster** in the sidebar
+2. Top of page shows your team selector. If you have only one team, it auto-selects.
+3. **Families tab first** (recommended order — players link to families):
+   - Click **+ Add family**, enter "Smith", Save
+   - On the Smith family card, click **+ Add contact**, enter Name "Jane Smith", Relationship "Mother", Phone, Email, tick "Primary contact", Add contact
+   - Repeat: add a second contact "John Smith / Father"
+   - Click the ★ next to John to make him primary instead — Jane's star should go grey
+4. **Players tab:**
+   - Click **+ Add player**
+   - Name "Alex Smith", Jersey 24, DOB (a junior date so age makes sense)
+   - Family: select "Smith" from dropdown
+   - Click positions PG and SG to highlight them
+   - Leave Active checked
+   - Add player
+5. The new player appears in the table with: jersey 24, age (computed), positions "PG, SG", family "Smith", Active green badge
+6. Click **Edit** on the player → change something → Save → confirm change persists
+7. Refresh page → both tabs still show your data
+
+## C. Permissions check (optional)
+
+If you have an Assistant Coach or Team Manager staff record, sign in as them — they should see Roster but only have view+edit access for teams they're assigned to. (Admin sees everything.)
+
+## D. Common issues
+
+**"Roster shows 'No teams to manage'"**
+→ You're not assigned to any team and you're not a club admin. Either go to Teams and create one (admin), or add a team_staff assignment.
+
+**"I get a permission error when adding a player"**
+→ The RLS policy needs you to be assigned to that team via team_staff (or be admin). Go to Teams → click the team → Staff section → assign yourself.
+
+If everything works, tell me and I'll move to step 5 (Ratings — 11 sub-skills with sum/average display).
+
+---
+
+# Step 4.5 — Testing the club-level player restructure
+
+## A. ⚠️ Run the migration (DESTRUCTIVE — wipes any test players/families/ratings)
+
+This was confirmed safe to run because no real player data has been entered yet.
+
+1. Supabase → SQL Editor → + New query
+2. Paste contents of `db/migration_step4_5.sql`
+3. Run
+4. Should see "Success. No rows returned"
+
+Verify with:
+```sql
+select table_name from information_schema.tables
+ where table_schema='public'
+   and table_name in ('players','families','team_memberships','ratings');
+-- Should return 4 rows
+select column_name from information_schema.columns
+ where table_name = 'players' order by ordinal_position;
+-- Should show: id, club_id, family_id, full_name, dob, photo_url, notes, created_at, updated_at
+-- (no team_id, no jersey_no, no positions, no is_active)
+```
+
+## B. Re-deploy the frontend
+
+Upload changed files: `index.html`, `js/lib/data.js`, `js/views/roster.js`, `db/schema.sql`, `db/rls.sql`.
+
+## C. Test the new model
+
+1. Reload your live URL → click **Roster**
+2. **Families tab:** add "Smith" family + a primary contact (the ★ now enforces single-primary — clicking ★ on contact B will un-star contact A)
+3. **Players tab:** click **+ New player**, fill in Alex Smith (jersey 24, position PG/SG, family Smith), Add to club + roster
+4. Alex appears in your team's roster
+5. **Cross-team test:** create a second team in Teams (e.g. "U16 Boys"), assign yourself as Head Coach, then come back to Roster
+6. In the team selector, switch to U16 Boys
+7. You should see a new button "**+ From club**" — click it, pick Alex Smith from the dropdown, give him jersey 12 + different positions, Add to roster
+8. Now switch back to the U14 team — Alex still has jersey 24 there. Switch to U16 — he has jersey 12.
+9. On either team, you'll see a small "Also on: U14 Boys" badge under Alex's name on the U16 roster (and vice versa).
+
+## D. Verify the per-team independence
+
+10. Edit Alex on U14 — change his jersey to 7. Save.
+11. Switch to U16 — his jersey there is still 12. Confirmed: jerseys are per team.
+12. Edit Alex's name on U14 (he becomes "Alex S Smith"). Save.
+13. Switch to U16 — he's "Alex S Smith" there too. Confirmed: name is club-level.
+
+## E. Verify deletion behaviour
+
+14. On U14 roster, click "Remove from team" on Alex. Confirm. He's off U14.
+15. Switch to U16 — he's still there. Confirmed: removing from team ≠ deleting from club.
+16. (Optional) Re-add Alex to U14 with "+ From club" — he's still in the club, picker shows him.
+
+If all of that works, the restructure holds. Tell me — I'll move to step 5 (per-team Ratings).
+
+---
+
+# Step 4.6 — Testing the cross-tool data foundation
+
+This adds Tier 1 + Tier 2 entities: seasons, opponents, player demographics, plays + stats view, player preferences, game scores. Foundation for integrating Game Time Wizard with Citipointe Team Mgmt + CourtSide Stats — no future schema rework required.
+
+## A. Run the migration (data-preserving)
+
+Existing teams.season text + games.opposition text are migrated to the new entities before the columns are dropped. Safe to run with existing data.
+
+1. Supabase → SQL Editor → + New query
+2. Paste contents of `db/migration_step4_6.sql` → Run
+3. Should see "Success. No rows returned"
+
+Verify with:
+```sql
+select table_name from information_schema.tables
+ where table_schema='public'
+   and table_name in ('seasons','opponents','player_preferences','plays');
+-- Should return 4 rows
+
+select count(*) from seasons;
+-- Should be at least 1 ("Default Season" auto-created per club)
+
+select column_name from information_schema.columns
+ where table_name='players'
+   and column_name in ('gender','first_year_of_play','primary_school','phone','email','external_ids','is_active_in_club');
+-- Should return 7 rows
+
+select column_name from information_schema.columns
+ where table_name='games'
+   and column_name in ('opposition_id','team_score','opposition_score','result');
+-- Should return 4 rows
+```
+
+## B. Re-deploy
+
+Upload the changed files: `index.html`, `js/lib/data.js`, `js/views/teams.js`, `js/views/team-detail.js`, `db/schema.sql`, `db/rls.sql`, `db/migration_step4_6.sql`. Commit, wait 1 min for GH Pages.
+
+## C. Test that nothing broke
+
+1. Reload your live URL → sign in as normal
+2. Click **Teams** — your existing teams still appear (Season column has been removed, that's expected — Settings → Seasons UI lands in a later step)
+3. Click into a team — settings still load and save correctly
+4. Click **Roster** — your players + families still load and save correctly
+5. **Settings** still loads, Club + Staff tabs work
+
+## D. (Optional) Spot-check the new entities exist
+
+In Supabase → Table Editor:
+- `seasons` should have at least one row ("Default Season")
+- `opponents` is empty (no games yet)
+- `players` table now has 7 new columns visible
+- `games` table has new columns (opposition_id, team_score, opposition_score, result)
+- `player_preferences` is empty (Citipointe intake hasn't been wired yet)
+- `plays` is empty (CourtSide hasn't been wired yet)
+
+## E. What's deferred to later UI work
+
+The foundation is in place but not all of it is exposed in the UI yet. Coming in later steps:
+
+- **Settings → Seasons** management (create/rename/set-current)
+- **Settings → Opponents** management (with logos, colors)
+- **Roster** form: gender, first year of play, primary school, player phone/email, external IDs (jsonb editor or simple key-value pairs)
+- **Games** form: opponent dropdown (powered by `opponents` table)
+- **Per-game data**: score + result entry post-game
+- **CourtSide bridge**: a stats viewer in Game Time Wizard reading `plays` + `player_game_stats` view
+
+If everything still works after re-deploy, the foundation is solid. Tell me and I'll continue with step 5 (per-team Ratings UI).
+
+
+
+
