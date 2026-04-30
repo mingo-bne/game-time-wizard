@@ -583,7 +583,14 @@ window.GTWData = (function () {
   async function getGame(gameId) {
     return check(await sb()
       .from('games')
-      .select('*, team:team_id ( id, name, game_format_periods, game_format_minutes_per_period ), opposition:opposition_id ( id, name, primary_color )')
+      .select(`
+        *,
+        team:team_id (
+          id, name, age_group, gender, division,
+          rule_mode, game_format_periods, game_format_minutes_per_period, rotation_block_minutes
+        ),
+        opposition:opposition_id ( id, name, primary_color )
+      `)
       .eq('id', gameId)
       .single());
   }
