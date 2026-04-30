@@ -95,7 +95,10 @@ function ratingsView(currentClub, currentStaff) {
     },
 
     canEdit() {
-      return this.isHeadCoach;
+      // The team's Coach can edit; club admins (Coordinator / Head Coach,
+      // both reflected in currentStaff.is_admin via the ADR-024 trigger)
+      // can edit on any team.
+      return this.isHeadCoach || !!currentStaff?.is_admin;
     },
 
     selectedTeamName() {
