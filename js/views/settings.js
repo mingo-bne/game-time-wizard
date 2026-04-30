@@ -16,7 +16,7 @@ const ALL_TOKENS_HELP = [
 
 function settingsView(currentClub, currentStaff) {
   return {
-    tab: 'club',           // 'club' | 'staff' | 'comms'
+    tab: 'club',           // 'club' | 'staff' | 'comms' | 'account'
     loading: true,
     saving: false,
     error: '',
@@ -29,6 +29,15 @@ function settingsView(currentClub, currentStaff) {
     showAddStaff: false,
     newStaff: { full_name: '', email: '', is_admin: false },
     editingStaffId: null,
+    resetSendingFor: null,           // staff.id while a password-reset email is sending
+    resetSentFor: null,              // staff.id we just successfully sent a reset to (3s flash)
+
+    // my account / change password
+    pwdNew: '',
+    pwdConfirm: '',
+    pwdSaving: false,
+    pwdSavedFlash: false,
+    pwdError: '',
 
     // comm templates
     commTemplates: [],
@@ -117,7 +126,7 @@ function settingsView(currentClub, currentStaff) {
     },
 
     startAdd() {
-      this.newStaff = { full_name: '', email: '', is_admin: false };
+      this.newStaff = { full_name: '', email: '', club_role: '' };  // '' = no club-wide role (team-only access)
       this.showAddStaff = true;
     },
 
@@ -132,7 +141,7 @@ function settingsView(currentClub, currentStaff) {
         await window.GTWData.createPendingStaff(currentClub.id, {
           full_name: this.newStaff.full_name.trim(),
           email:     this.newStaff.email.trim().toLowerCase(),
-          is_admin:  this.newStaff.is_admin
+          club_role: this.newStaff.club_role || null
         });
         this.showAddStaff = false;
         await this.loadStaff();
@@ -143,13 +152,26 @@ function settingsView(currentClub, currentStaff) {
       }
     },
 
-    async toggleAdmin(s) {
+    // Update a staff member's club-wide role.
+    //   newRole: '' (no club role — team-only access) | 'coordinator' | 'head_coach'
+    // The DB trigger sync_is_admin_with_club_role keeps staff.is_admin in
+    // step automatically, so RLS policies based on is_admin continue to work.
+    async setClubRole(s, newRole) {
+      if (s.id === currentStaff.id && !newRole) {
+        if (!confirm("Removing your own club role will lock you out of club-wide settings. Continue?")) return;
+      }
       try {
-        await window.GTWData.updateStaff(s.id, { is_admin: !s.is_admin });
+        await window.GTWData.updateStaff(s.id, { club_role: newRole || null });
         await this.loadStaff();
       } catch (err) {
         this.error = err.message;
       }
+    },
+
+    clubRoleLabel(role) {
+      if (role === 'coordinator') return 'Club Coordinator';
+      if (role === 'head_coach')  return 'Club Head Coach';
+      return '—';
     },
 
     async removeStaff(s) {
@@ -168,6 +190,64 @@ function settingsView(currentClub, currentStaff) {
 
     inviteUrl() {
       return window.location.origin + window.location.pathname;
+    },
+
+    // ---- My account: change own password ----
+    async changePassword() {
+      this.pwdError = '';
+      this.pwdSavedFlash = false;
+
+      if (!this.pwdNew || this.pwdNew.length < 8) {
+        this.pwdError = 'Password must be at least 8 characters.';
+        return;
+      }
+      if (this.pwdNew !== this.pwdConfirm) {
+        this.pwdError = 'Passwords do not match.';
+        return;
+      }
+
+      this.pwdSaving = true;
+      try {
+        const sb = window.GTWData.sb();
+        const { error } = await sb.auth.updateUser({ password: this.pwdNew });
+        if (error) throw error;
+        this.pwdNew = '';
+        this.pwdConfirm = '';
+        this.pwdSavedFlash = true;
+        setTimeout(() => { this.pwdSavedFlash = false; }, 4000);
+      } catch (err) {
+        this.pwdError = err.message || 'Failed to update password.';
+      } finally {
+        this.pwdSaving = false;
+      }
+    },
+
+    // ---- Admin: send a password-reset email to a staff member ----
+    // Uses Supabase's public resetPasswordForEmail — no admin API needed.
+    // The recipient gets an email with a link that lets them set a new password.
+    async sendPasswordReset(s) {
+      if (!this.isAdmin()) return;
+      if (!s.email) {
+        this.error = 'No email on file for this staff member.';
+        return;
+      }
+      this.error = '';
+      this.resetSendingFor = s.id;
+      try {
+        const sb = window.GTWData.sb();
+        const { error } = await sb.auth.resetPasswordForEmail(s.email, {
+          redirectTo: window.location.origin + window.location.pathname
+        });
+        if (error) throw error;
+        this.resetSentFor = s.id;
+        setTimeout(() => {
+          if (this.resetSentFor === s.id) this.resetSentFor = null;
+        }, 4000);
+      } catch (err) {
+        this.error = `Failed to send reset email: ${err.message || err}`;
+      } finally {
+        this.resetSendingFor = null;
+      }
     }
   };
 }

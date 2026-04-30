@@ -299,9 +299,13 @@ function teamDetailView(currentClub, currentStaff, teamId, onNavigate) {
 
     roleLabel(role) {
       return {
-        head_coach:      'Head Coach',
+        coach:           'Coach',
         assistant_coach: 'Assistant Coach',
-        team_manager:    'Team Manager'
+        team_manager:    'Team Manager',
+        // Legacy fallback — pre-ADR-024 data may still surface 'head_coach'
+        // until the migration runs. Map it to the new label so the UI
+        // doesn't flash a raw enum value.
+        head_coach:      'Coach'
       }[role] || role;
     },
 

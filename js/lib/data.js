@@ -71,16 +71,22 @@ window.GTWData = (function () {
   async function createPendingStaff(clubId, fields) {
     // Pre-create a staff row with user_id = null. Trigger will attach
     // user_id when this person signs in via magic link for the first time.
+    //
+    // is_admin is NOT passed from the client — the DB trigger
+    // (sync_is_admin_with_club_role) derives it from club_role. See ADR-024.
     return check(await sb().from('staff').insert({
       club_id:    clubId,
       full_name:  fields.full_name,
       email:      fields.email,
-      is_admin:   !!fields.is_admin,
+      club_role:  fields.club_role || null,   // 'coordinator' | 'head_coach' | null
       invited_at: new Date().toISOString()
     }).select().single());
   }
 
   async function updateStaff(staffId, fields) {
+    // Callers that want to grant/revoke club-wide access should pass
+    // club_role ('coordinator' | 'head_coach' | null). The DB trigger
+    // syncs is_admin automatically.
     return check(await sb().from('staff').update(fields).eq('id', staffId).select().single());
   }
 
@@ -172,12 +178,15 @@ window.GTWData = (function () {
   }
 
   async function isHeadCoachOfTeam(teamId, staffId) {
+    // "Head coach of team" is now `team_staff.role = 'coach'` after the
+    // ADR-024 rename. Function name kept for callsite compat — semantics
+    // unchanged: returns true when this staff member is the team's primary coach.
     const { data, error } = await sb()
       .from('team_staff')
       .select('id')
       .eq('team_id', teamId)
       .eq('staff_id', staffId)
-      .eq('role', 'head_coach')
+      .eq('role', 'coach')
       .maybeSingle();
     if (error) throw new Error(error.message);
     return !!data;

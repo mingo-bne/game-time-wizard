@@ -641,7 +641,7 @@
                               <td class="py-2">
                                 <select x-show="isAdmin()" :value="ts.role" @change="changeRole(ts, $event.target.value)"
                                   class="text-xs border border-slate-300 rounded px-2 py-1">
-                                  <option value="head_coach">Head Coach</option>
+                                  <option value="coach">Coach</option>
                                   <option value="assistant_coach">Assistant Coach</option>
                                   <option value="team_manager">Team Manager</option>
                                 </select>
@@ -670,7 +670,7 @@
                             <div>
                               <label class="block text-xs font-medium mb-1">Role</label>
                               <select x-model="selectedRole" class="w-full border border-slate-300 rounded px-2 py-1.5 text-sm">
-                                <option value="head_coach">Head Coach</option>
+                                <option value="coach">Coach</option>
                                 <option value="assistant_coach">Assistant Coach</option>
                                 <option value="team_manager">Team Manager</option>
                               </select>
@@ -1299,7 +1299,7 @@
                   <div>
                     <!-- Permission notice -->
                     <div x-show="!canEdit()" class="mb-4 bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
-                      Read-only — only the team's <strong>Head Coach</strong> can edit ratings on this team.
+                      Read-only — only the team's <strong>Coach</strong> (or a Club Coordinator / Club Head Coach) can edit ratings on this team.
                     </div>
 
                     <!-- Team summary -->
@@ -2235,7 +2235,7 @@
                 <h1 class="text-2xl font-bold mb-1">Settings</h1>
                 <p class="text-sm text-slate-500 mb-6">Club name and staff roster.</p>
 
-                <div class="border-b border-slate-200 mb-6 flex gap-6">
+                <div class="border-b border-slate-200 mb-6 flex gap-6 flex-wrap">
                   <button @click="tab = 'club'"
                     :class="tab === 'club' ? 'border-brand-600 text-brand-700' : 'border-transparent text-slate-600'"
                     class="pb-2 border-b-2 text-sm font-medium">Club</button>
@@ -2245,6 +2245,9 @@
                   <button @click="tab = 'comms'"
                     :class="tab === 'comms' ? 'border-brand-600 text-brand-700' : 'border-transparent text-slate-600'"
                     class="pb-2 border-b-2 text-sm font-medium">Comms templates</button>
+                  <button @click="tab = 'account'"
+                    :class="tab === 'account' ? 'border-brand-600 text-brand-700' : 'border-transparent text-slate-600'"
+                    class="pb-2 border-b-2 text-sm font-medium">My account</button>
                 </div>
 
                 <p x-show="error" x-text="error" class="text-sm text-red-600 mb-3"></p>
@@ -2286,7 +2289,7 @@
                             <th class="text-left p-3">Name</th>
                             <th class="text-left p-3">Email</th>
                             <th class="text-left p-3">Status</th>
-                            <th class="text-left p-3">Admin</th>
+                            <th class="text-left p-3">Club role</th>
                             <th class="text-right p-3"></th>
                           </tr>
                         </thead>
@@ -2297,12 +2300,23 @@
                               <td class="p-3 text-slate-600" x-text="s.email"></td>
                               <td class="p-3 text-xs text-slate-500" x-text="s.user_id ? 'Active' : 'Invited (not yet signed in)'"></td>
                               <td class="p-3">
-                                <button x-show="isAdmin()" @click="toggleAdmin(s)"
-                                  :class="s.is_admin ? 'bg-brand-100 text-brand-700' : 'bg-slate-100 text-slate-500'"
-                                  class="text-xs rounded px-2 py-1" x-text="s.is_admin ? 'Admin' : 'Member'"></button>
-                                <span x-show="!isAdmin()" class="text-xs text-slate-500" x-text="s.is_admin ? 'Yes' : 'No'"></span>
+                                <select x-show="isAdmin()" :value="s.club_role || ''"
+                                  @change="setClubRole(s, $event.target.value)"
+                                  class="text-xs border border-slate-300 rounded px-2 py-1 bg-white">
+                                  <option value="">— (team-only)</option>
+                                  <option value="coordinator">Club Coordinator</option>
+                                  <option value="head_coach">Club Head Coach</option>
+                                </select>
+                                <span x-show="!isAdmin()" class="text-xs text-slate-500" x-text="clubRoleLabel(s.club_role)"></span>
                               </td>
-                              <td class="p-3 text-right">
+                              <td class="p-3 text-right whitespace-nowrap">
+                                <button x-show="isAdmin() && s.user_id" @click="sendPasswordReset(s)"
+                                  :disabled="resetSendingFor === s.id"
+                                  class="text-xs text-brand-600 hover:underline disabled:opacity-50 mr-3">
+                                  <span x-show="resetSendingFor !== s.id && resetSentFor !== s.id">Send reset</span>
+                                  <span x-show="resetSendingFor === s.id">Sending…</span>
+                                  <span x-show="resetSentFor === s.id" class="text-green-700">✓ Sent</span>
+                                </button>
                                 <button x-show="isAdmin()" @click="removeStaff(s)" class="text-xs text-red-600 hover:underline">Remove</button>
                               </td>
                             </tr>
@@ -2326,10 +2340,18 @@
                             <input type="email" x-model="newStaff.email" placeholder="jane@example.com"
                               class="w-full border border-slate-300 rounded-lg px-3 py-2" />
                           </div>
-                          <label class="flex items-center gap-2 text-sm">
-                            <input type="checkbox" x-model="newStaff.is_admin" />
-                            Make this person a club admin
-                          </label>
+                          <div>
+                            <label class="block text-sm font-medium mb-1">Club role</label>
+                            <select x-model="newStaff.club_role"
+                              class="w-full border border-slate-300 rounded-lg px-3 py-2">
+                              <option value="">— None (team-level access only)</option>
+                              <option value="coordinator">Club Coordinator (full club access + user mgmt)</option>
+                              <option value="head_coach">Club Head Coach (full club access + user mgmt)</option>
+                            </select>
+                            <p class="text-xs text-slate-500 mt-1">
+                              Leave as "None" if this person should only see/operate on specific teams. You'll assign them to teams from each team's detail page after they're added.
+                            </p>
+                          </div>
                         </div>
                         <div class="bg-amber-50 border border-amber-200 rounded p-3 text-xs text-amber-800 mb-4">
                           <strong>Heads up:</strong> after you add them, copy this URL into a message and send it to them.
@@ -2390,6 +2412,44 @@
                         </div>
                       </template>
                     </div>
+                  </div>
+                </template>
+
+                <!-- MY ACCOUNT TAB -->
+                <template x-if="!loading && tab === 'account'">
+                  <div class="bg-white border border-slate-200 rounded-xl p-6 max-w-xl">
+                    <h2 class="text-lg font-semibold mb-1">My account</h2>
+                    <p class="text-xs text-slate-500 mb-5">
+                      Signed in as <strong x-text="currentStaff?.email"></strong>
+                    </p>
+
+                    <h3 class="text-sm font-semibold mb-3">Change password</h3>
+                    <form @submit.prevent="changePassword()" class="space-y-3" autocomplete="off">
+                      <div>
+                        <label class="block text-sm font-medium mb-1">New password</label>
+                        <input type="password" x-model="pwdNew" autocomplete="new-password"
+                          placeholder="At least 8 characters"
+                          class="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                      </div>
+                      <div>
+                        <label class="block text-sm font-medium mb-1">Confirm new password</label>
+                        <input type="password" x-model="pwdConfirm" autocomplete="new-password"
+                          class="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                      </div>
+
+                      <p x-show="pwdError" x-text="pwdError" class="text-sm text-red-600"></p>
+                      <p x-show="pwdSavedFlash" class="text-sm text-green-700 font-medium">✓ Password updated. Use the new password next time you sign in.</p>
+
+                      <div class="flex items-center gap-2 pt-1">
+                        <button type="submit" :disabled="pwdSaving || !pwdNew"
+                          class="bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm rounded-lg px-4 py-2 font-medium">
+                          <span x-text="pwdSaving ? 'Saving…' : 'Update password'"></span>
+                        </button>
+                      </div>
+                      <p class="text-xs text-slate-500 pt-2">
+                        Your active session stays valid — you don't get signed out. To sign out everywhere (other devices, browsers), use Sign out in the sidebar.
+                      </p>
+                    </form>
                   </div>
                 </template>
               </div>
