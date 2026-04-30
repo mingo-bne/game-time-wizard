@@ -1,0 +1,25 @@
+/* =====================================================================
+   Game Time Wizard — Custom CSS layer (on top of Tailwind CDN)
+   ===================================================================== */
+
+/* Hide [x-cloak] elements until Alpine has hydrated — prevents FOUC */
+[x-cloak] { display: none !important; }
+
+/* Print styles for rotation chart (printable from Game Week screen) */
+@media print {
+  body { background: white; }
+  aside, header, nav { display: none !important; }
+  main { padding: 0 !important; }
+  .no-print { display: none !important; }
+}
+
+/* Subtle table hover for data tables (used later) */
+.gtw-table tbody tr:hover {
+  background-color: #fff7ed; /* brand-50 */
+}
+
+/* Brand focus ring helper */
+.gtw-focus:focus {
+  outline: 2px solid #f97316;
+  outline-offset: 2px;
+}
