@@ -24,6 +24,9 @@ function gameWeekView(currentClub, currentStaff, gameId, onNavigate) {
     rotationPlan: null,               // rotation_plans row (or null)
     generatingRotation: false,
     showAvailability: false,
+
+    // Manual editing state — { blockIdx, playerId } when an on-court player is selected for swap
+    selectedSwap: null,
     showBorrowPicker: false,
     borrowCandidates: [],
     borrowSearch: '',
@@ -359,6 +362,145 @@ function gameWeekView(currentClub, currentStaff, gameId, onNavigate) {
 
     printRotation() {
       window.print();
+    },
+
+    // ============ MANUAL ROTATION EDITING ============
+
+    // Build an empty plan (for senior teams or when starting fresh)
+    async startEmptyPlan() {
+      if (this.rotationPlan) {
+        if (!confirm('Replace existing plan with an empty one?')) return;
+      }
+      try {
+        const periods = this.game.periods ?? this.game.team.game_format_periods ?? 2;
+        const minutesPerPeriod = this.game.minutes_per_period ?? this.game.team.game_format_minutes_per_period ?? 20;
+        const blockSize = this.game.team.rotation_block_minutes ?? 2;
+
+        const periodsOut = [];
+        for (let p = 0; p < periods; p++) {
+          const blocks = [];
+          let from = 0;
+          while (from < minutesPerPeriod) {
+            const to = Math.min(from + blockSize, minutesPerPeriod);
+            blocks.push({ from, to, on_court: [] });
+            from = to;
+          }
+          periodsOut.push({ minute_blocks: blocks });
+        }
+
+        const plan = {
+          version: 1,
+          generated_at: new Date().toISOString(),
+          format: { periods, minutes_per_period: minutesPerPeriod, block_size: blockSize },
+          players_count: 0,
+          periods: periodsOut,
+          minutes_by_player: {}
+        };
+        await window.GTWData.saveRotationPlan(gameId, plan, false);
+        await this.loadAvailabilityAndRotation();
+      } catch (err) {
+        this.error = err.message;
+      }
+    },
+
+    // Find period + local block for a global block index
+    locateBlock(globalBlockIdx) {
+      let cum = 0;
+      for (let p = 0; p < this.rotationPlan.plan.periods.length; p++) {
+        const blocks = this.rotationPlan.plan.periods[p].minute_blocks;
+        if (cum + blocks.length > globalBlockIdx) {
+          return { periodIdx: p, localIdx: globalBlockIdx - cum, block: blocks[globalBlockIdx - cum] };
+        }
+        cum += blocks.length;
+      }
+      return null;
+    },
+
+    isCellSelected(blockIdx, playerId) {
+      return this.selectedSwap?.blockIdx === blockIdx && this.selectedSwap?.playerId === playerId;
+    },
+
+    // True if this column is the active swap target (off-court cells should highlight)
+    isSwapTargetColumn(blockIdx) {
+      if (this.selectedSwap?.blockIdx === blockIdx) return true;
+      // Or block has space (< 5 on court)
+      const loc = this.rotationPlan ? this.locateBlock(blockIdx) : null;
+      return loc && loc.block.on_court.length < 5;
+    },
+
+    cancelSwap() {
+      this.selectedSwap = null;
+    },
+
+    async clickCell(blockIdx, playerId, isOnCourt) {
+      if (!this.canEdit() || !this.rotationPlan) return;
+
+      if (isOnCourt) {
+        // Toggle selection
+        if (this.isCellSelected(blockIdx, playerId)) {
+          this.selectedSwap = null;
+        } else {
+          this.selectedSwap = { blockIdx, playerId };
+        }
+        return;
+      }
+
+      // Off-court click
+      const loc = this.locateBlock(blockIdx);
+      if (!loc) return;
+
+      if (loc.block.on_court.length < 5) {
+        // Block has space — just add this player
+        await this.applyEdit(plan => {
+          const b = plan.periods[loc.periodIdx].minute_blocks[loc.localIdx];
+          if (!b.on_court.includes(playerId)) b.on_court.push(playerId);
+        });
+      } else if (this.selectedSwap?.blockIdx === blockIdx) {
+        // Block full + we have a swap target — swap them
+        const outId = this.selectedSwap.playerId;
+        await this.applyEdit(plan => {
+          const b = plan.periods[loc.periodIdx].minute_blocks[loc.localIdx];
+          const idx = b.on_court.indexOf(outId);
+          if (idx >= 0) b.on_court[idx] = playerId;
+        });
+        this.selectedSwap = null;
+      }
+      // Else (block full, no swap target): silently ignore — UI hint should make this obvious
+    },
+
+    async removeFromBlock(blockIdx, playerId) {
+      if (!this.canEdit() || !this.rotationPlan) return;
+      const loc = this.locateBlock(blockIdx);
+      if (!loc) return;
+      await this.applyEdit(plan => {
+        const b = plan.periods[loc.periodIdx].minute_blocks[loc.localIdx];
+        b.on_court = b.on_court.filter(id => id !== playerId);
+      });
+      if (this.isCellSelected(blockIdx, playerId)) this.selectedSwap = null;
+    },
+
+    // Apply a mutation to the plan, recompute minutes, save
+    async applyEdit(mutator) {
+      try {
+        const plan = JSON.parse(JSON.stringify(this.rotationPlan.plan));
+        mutator(plan);
+        // Recompute minutes_by_player from blocks
+        const minutes = {};
+        for (const period of plan.periods) {
+          for (const b of period.minute_blocks) {
+            const dur = b.to - b.from;
+            for (const pid of b.on_court) {
+              minutes[pid] = (minutes[pid] || 0) + dur;
+            }
+          }
+        }
+        plan.minutes_by_player = minutes;
+        plan.players_count = Object.keys(minutes).length;
+        await window.GTWData.saveRotationPlan(gameId, plan, this.rotationPlan.is_locked);
+        await this.loadAvailabilityAndRotation();
+      } catch (err) {
+        this.error = err.message;
+      }
     },
 
     canEdit() {
