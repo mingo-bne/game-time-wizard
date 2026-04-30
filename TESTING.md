@@ -908,6 +908,68 @@ Upload changed files: `index.html`, `js/lib/data.js`, `js/views/teams.js`, `js/v
 
 If the visual works, tell me and I'll continue with step 9 (Comms templates — the last functional module).
 
+---
+
+# Step 9 — Testing the Comms templates
+
+No SQL migration needed (comm_templates and comm_messages tables already exist from step 1).
+
+## A. Re-deploy
+
+Upload changed files: `index.html`, the new `js/lib/comms.js`, `js/lib/data.js`, `js/views/game-week.js`, `js/views/settings.js`. Wait 1 min.
+
+## B. Verify the templates exist
+
+If you ran `db/seed.sql` back in step 2 setup, you already have three default templates. To verify:
+
+1. Settings → **Comms templates** tab (new!) → should show three sections (Day -7, Day -2, Day -1) each with editable text.
+2. If empty, paste one of the seed templates (or write your own) using `{{tokens}}` like `{{team_name}}`, `{{game_date}}`, etc. Save.
+
+## C. Generate a Day -7 availability message
+
+1. Open a game's Game Week screen
+2. Day -7 card now has a **Generate message** button. Click it.
+3. The template renders with current data — team name, game date, opposition all filled in.
+4. Editable textarea — tweak the text if you like.
+5. Click **📋 Copy & mark sent** → button label changes to "Copying…", then back. The card status flips to green "Sent · [timestamp]". The message text is now in your clipboard — paste into WhatsApp.
+6. Re-generate replaces the draft (mark sent timestamp clears until you copy again).
+
+## D. Generate a Day -2 logistics message
+
+1. Make sure bench duty is assigned (use Generate Roster on the team page or pick a player on this game)
+2. Day -2 card → **Generate message**
+3. Message includes the bench duty player + family name.
+4. Copy & mark sent.
+
+## E. Generate a Day -1 game day message (with rotation)
+
+1. Make sure availability is set + rotation generated
+2. Day -1 card → **Generate game day message**
+3. Message includes the formatted rotation chart text (Q1 0-2: names…) and per-player minutes summary.
+4. Copy & mark sent.
+
+## F. Verify the workflow tracking
+
+1. After all three are sent, the Game Week page shows green "Sent" status on each card.
+2. The dashboard's `game_week_status` view (for the next-game alerts feature) reflects the same state.
+
+## G. Edit a template and re-generate
+
+1. Settings → Comms templates → modify the Day -7 template (e.g. add an emoji or change wording)
+2. Save
+3. Open a game → Day -7 card → Re-generate → new template renders with current data
+
+## H. Common issues
+
+**"No template configured"** → Settings → Comms templates → fill in the missing one and save.
+
+**"Copying… then nothing happens"** → Some browsers (especially older Safari) require a user gesture for clipboard write. Make sure you clicked the button directly. If it still fails, the textarea is editable — select all + Cmd+C manually.
+
+**"Tokens not getting substituted"** → Check the spelling. Available: `{{team_name}}`, `{{game_date}}`, `{{game_time}}`, `{{venue}}`, `{{court}}`, `{{opposition}}`, `{{duty_family}}`, `{{rotation_chart}}`, `{{available_count}}`, `{{unconfirmed_list}}`. Typos are left as `{{wrongname}}` so they're visible to the coach.
+
+If all three messages generate, copy, and mark sent correctly — tell me. v1 build is feature-complete. Step 11 (End-to-end run-through) is the last item.
+
+
 
 
 

@@ -36,7 +36,8 @@ Game Time Wizard/
 │   ├── app.js               ← Root Alpine component (auth, routing)
 │   ├── lib/
 │   │   ├── data.js          ← All Supabase queries
-│   │   └── rotation.js      ← Equal Opportunity rotation algorithm (pure)
+│   │   ├── rotation.js      ← Equal Opportunity rotation algorithm (pure)
+│   │   └── comms.js         ← Token substitution + rotation chart text formatter
 │   └── views/
 │       ├── dashboard.js     ← Club summary + upcoming games
 │       ├── settings.js      ← Club + Staff management
@@ -92,7 +93,8 @@ All staff can read everything in their own club.
 - [x] Bench Duty engine (pool, exclusions, fairness algorithm, Day-2 card on Game Week)
 - [x] Equal Opportunity Rotation engine (availability + algorithm + chart + print)
 - [x] Manual rotation editing — clickable cells, two-click swap, also covers senior teams ("Start empty plan" → build manually)
-- [ ] **Next: Comms templates** (3 messages per game)
+- [x] Comms templates (3 copy/paste messages per game wired into Day -7 / -2 / -1 cards + Settings → Comms templates editor)
+- [ ] **Last: End-to-end run-through with one real team**
 - [ ] Equal Opportunity Rotation engine
 - [ ] Comms templates (3 messages per game)
 - [ ] Senior scratch pad

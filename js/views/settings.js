@@ -1,9 +1,22 @@
 // =====================================================================
 // Settings view — Club + Staff tabs
 // =====================================================================
+const MESSAGE_TYPE_LABELS = {
+  availability_request: 'Day -7 — Availability request',
+  logistics_reminder:   'Day -2 — Logistics + bench duty reminder',
+  game_day_notice:      'Day -1 — Game day notice (with rotation)'
+};
+
+const ALL_TOKENS_HELP = [
+  '{{team_name}}', '{{game_date}}', '{{game_time}}',
+  '{{venue}}', '{{court}}', '{{opposition}}',
+  '{{duty_family}}', '{{rotation_chart}}',
+  '{{available_count}}', '{{unconfirmed_list}}'
+];
+
 function settingsView(currentClub, currentStaff) {
   return {
-    tab: 'club',           // 'club' | 'staff'
+    tab: 'club',           // 'club' | 'staff' | 'comms'
     loading: true,
     saving: false,
     error: '',
@@ -17,10 +30,43 @@ function settingsView(currentClub, currentStaff) {
     newStaff: { full_name: '', email: '', is_admin: false },
     editingStaffId: null,
 
+    // comm templates
+    commTemplates: [],
+    templateDrafts: {},
+    MESSAGE_TYPE_LABELS,
+    ALL_TOKENS_HELP,
+
     async init() {
       this.clubName = currentClub?.name || '';
-      await this.loadStaff();
+      await Promise.all([this.loadStaff(), this.loadTemplates()]);
       this.loading = false;
+    },
+
+    async loadTemplates() {
+      try {
+        this.commTemplates = await window.GTWData.listCommTemplates(currentClub.id);
+        this.templateDrafts = {};
+        for (const t of this.commTemplates) this.templateDrafts[t.message_type] = t.template;
+        // Ensure all three message types have a draft entry (even if no template row exists yet)
+        for (const mt of Object.keys(MESSAGE_TYPE_LABELS)) {
+          if (!(mt in this.templateDrafts)) this.templateDrafts[mt] = '';
+        }
+      } catch (err) {
+        this.error = err.message;
+      }
+    },
+
+    async saveTemplate(messageType) {
+      this.error = '';
+      this.saving = true;
+      try {
+        await window.GTWData.upsertCommTemplate(currentClub.id, messageType, this.templateDrafts[messageType] || '');
+        await this.loadTemplates();
+      } catch (err) {
+        this.error = err.message;
+      } finally {
+        this.saving = false;
+      }
     },
 
     isAdmin() {

@@ -527,6 +527,56 @@ window.GTWData = (function () {
     };
   }
 
+  // ---------- COMMS (templates + per-game generated messages) ----------
+
+  async function listCommTemplates(clubId) {
+    return check(await sb()
+      .from('comm_templates')
+      .select('*')
+      .eq('club_id', clubId)
+      .order('message_type'));
+  }
+
+  async function upsertCommTemplate(clubId, messageType, template) {
+    return check(await sb().from('comm_templates').upsert({
+      club_id: clubId,
+      message_type: messageType,
+      template: template
+    }, { onConflict: 'club_id,message_type' }).select().single());
+  }
+
+  async function listGameCommMessages(gameId) {
+    return check(await sb()
+      .from('comm_messages')
+      .select('*')
+      .eq('game_id', gameId));
+  }
+
+  async function upsertCommMessage(gameId, messageType, generatedText) {
+    return check(await sb().from('comm_messages').upsert({
+      game_id: gameId,
+      message_type: messageType,
+      generated_text: generatedText,
+      generated_at: new Date().toISOString()
+    }, { onConflict: 'game_id,message_type' }).select().single());
+  }
+
+  async function markCommMessageCopied(messageId) {
+    return check(await sb()
+      .from('comm_messages')
+      .update({ copied_at: new Date().toISOString() })
+      .eq('id', messageId)
+      .select().single());
+  }
+
+  async function clearCommMessage(gameId, messageType) {
+    return check(await sb()
+      .from('comm_messages')
+      .delete()
+      .eq('game_id', gameId)
+      .eq('message_type', messageType));
+  }
+
   // ---------- DASHBOARD SUMMARY ----------
 
   async function getDashboardSummary(clubId) {
@@ -905,6 +955,8 @@ window.GTWData = (function () {
     listAvailabilities, upsertAvailability, clearAvailability,
     listBorrowedPlayers, addBorrowedPlayer, updateBorrowedPlayer, removeBorrowedPlayer, listBorrowCandidates,
     getRotationPlan, saveRotationPlan, setRotationLock, deleteRotationPlan,
+    listCommTemplates, upsertCommTemplate,
+    listGameCommMessages, upsertCommMessage, markCommMessageCopied, clearCommMessage,
     listMyEditableTeams,
     listFamilies, createFamily, updateFamily, deleteFamily,
     addFamilyContact, updateFamilyContact, removeFamilyContact,

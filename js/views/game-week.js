@@ -27,6 +27,21 @@ function gameWeekView(currentClub, currentStaff, gameId, onNavigate) {
 
     // Manual editing state — { blockIdx, playerId } when an on-court player is selected for swap
     selectedSwap: null,
+
+    // Comms
+    commTemplates: [],         // raw template rows
+    commMessages: [],          // raw message rows for this game
+    messageDrafts: {           // editable preview text keyed by message_type
+      availability_request: '',
+      logistics_reminder: '',
+      game_day_notice: ''
+    },
+    showMessage: {             // expand/collapse state per card
+      availability_request: false,
+      logistics_reminder: false,
+      game_day_notice: false
+    },
+    copying: '',               // message_type currently being copied (for spinner)
     showBorrowPicker: false,
     borrowCandidates: [],
     borrowSearch: '',
@@ -48,12 +63,26 @@ function gameWeekView(currentClub, currentStaff, gameId, onNavigate) {
         await this.loadGame();
         await Promise.all([
           this.loadDuty(),
-          this.loadAvailabilityAndRotation()
+          this.loadAvailabilityAndRotation(),
+          this.loadComms()
         ]);
       } catch (err) {
         this.error = err.message;
       } finally {
         this.loading = false;
+      }
+    },
+
+    async loadComms() {
+      const [templates, messages] = await Promise.all([
+        window.GTWData.listCommTemplates(currentClub.id),
+        window.GTWData.listGameCommMessages(gameId)
+      ]);
+      this.commTemplates = templates;
+      this.commMessages = messages;
+      // Hydrate drafts from existing generated text
+      for (const m of messages) {
+        if (m.generated_text) this.messageDrafts[m.message_type] = m.generated_text;
       }
     },
 
@@ -504,6 +533,101 @@ function gameWeekView(currentClub, currentStaff, gameId, onNavigate) {
         b.on_court = b.on_court.filter(id => id !== playerId);
       });
       if (this.isCellSelected(blockIdx, playerId)) this.selectedSwap = null;
+    },
+
+    // ============ COMMS ============
+
+    commTemplate(messageType) {
+      return this.commTemplates.find(t => t.message_type === messageType)?.template || '';
+    },
+
+    commMessage(messageType) {
+      return this.commMessages.find(m => m.message_type === messageType) || null;
+    },
+
+    isMessageSent(messageType) {
+      return !!this.commMessage(messageType)?.copied_at;
+    },
+
+    messageStatusLabel(messageType) {
+      const m = this.commMessage(messageType);
+      if (!m) return 'Not generated yet';
+      if (m.copied_at) return 'Sent · ' + new Date(m.copied_at).toLocaleString('en-AU');
+      return 'Generated · not yet copied';
+    },
+
+    // Build the token context for the current game state
+    buildCommsContext() {
+      const players = this.availablePlayers().map(p => ({
+        id: p.player_id,
+        full_name: p.full_name + (p.is_borrowed ? ' (borrowed)' : '')
+      }));
+      const unconfirmedNames = this.allEligiblePlayers()
+        .filter(p => !this.availabilityFor(p.player_id))
+        .map(p => '- ' + p.full_name)
+        .join('\n');
+      return window.GTWComms.buildContext({
+        game: this.game,
+        dutyAssignment: this.dutyAssignment,
+        rotationPlan: this.rotationPlan,
+        players: players,
+        availableCount: this.availabilityCount('available'),
+        unconfirmedList: unconfirmedNames || '(none)'
+      });
+    },
+
+    generateMessage(messageType) {
+      const tpl = this.commTemplate(messageType);
+      if (!tpl) {
+        this.error = 'No template configured for ' + messageType + '. Set one in Settings → Comms.';
+        return;
+      }
+      const ctx = this.buildCommsContext();
+      const rendered = window.GTWComms.render(tpl, ctx);
+      this.messageDrafts[messageType] = rendered;
+      this.showMessage[messageType] = true;
+    },
+
+    async copyMessage(messageType) {
+      this.copying = messageType;
+      this.error = '';
+      try {
+        const text = this.messageDrafts[messageType];
+        if (!text) {
+          this.error = 'No message text to copy. Click Generate first.';
+          return;
+        }
+        // Save the text first
+        await window.GTWData.upsertCommMessage(gameId, messageType, text);
+        // Refresh to get the row id, then mark copied
+        const messages = await window.GTWData.listGameCommMessages(gameId);
+        this.commMessages = messages;
+        const saved = this.commMessage(messageType);
+        if (saved) {
+          // Try to copy to clipboard
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(text);
+          }
+          await window.GTWData.markCommMessageCopied(saved.id);
+          this.commMessages = await window.GTWData.listGameCommMessages(gameId);
+        }
+      } catch (err) {
+        this.error = 'Copy failed: ' + err.message + '. You can still select the text and copy manually.';
+      } finally {
+        this.copying = '';
+      }
+    },
+
+    async clearMessage(messageType) {
+      if (!confirm('Clear this message and reset its sent status?')) return;
+      try {
+        await window.GTWData.clearCommMessage(gameId, messageType);
+        this.messageDrafts[messageType] = '';
+        this.showMessage[messageType] = false;
+        this.commMessages = await window.GTWData.listGameCommMessages(gameId);
+      } catch (err) {
+        this.error = err.message;
+      }
     },
 
     // Apply a mutation to the plan, recompute minutes, save

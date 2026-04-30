@@ -1645,22 +1645,46 @@
                       <h2 class="text-lg font-semibold mb-3">Game week workflow</h2>
                       <div class="space-y-3">
 
-                        <!-- Day -7: Availability request (placeholder until step 9) -->
+                        <!-- Day -7: Availability request -->
                         <template x-for="step in workflowSteps().filter(s => s.key === 'availability')" :key="step.key">
                           <div class="bg-white border rounded-xl p-5"
                                :class="step.windowOpen ? 'border-brand-300 bg-brand-50/30' : 'border-slate-200'">
-                            <div class="flex items-start justify-between gap-3 mb-2">
+                            <div class="flex items-start justify-between gap-3 mb-3">
                               <div class="flex items-start gap-2">
                                 <span class="text-xl" x-text="step.icon"></span>
                                 <div>
                                   <h3 class="font-semibold" x-text="step.label"></h3>
-                                  <div class="text-xs text-slate-600 mt-0.5" x-text="step.status"></div>
+                                  <div class="text-xs mt-0.5"
+                                    :class="isMessageSent('availability_request') ? 'text-green-700' : 'text-slate-600'"
+                                    x-text="messageStatusLabel('availability_request')"></div>
                                 </div>
                               </div>
                               <span x-show="step.windowOpen"
                                 class="text-[10px] uppercase tracking-wider bg-brand-600 text-white rounded px-2 py-0.5">Now</span>
                             </div>
-                            <div class="mt-2 text-xs text-slate-500 italic" x-text="step.placeholder"></div>
+
+                            <div class="flex justify-end gap-2 no-print">
+                              <button @click="generateMessage('availability_request')"
+                                class="bg-brand-600 hover:bg-brand-700 text-white text-xs rounded-lg px-3 py-1.5 font-medium">
+                                <span x-text="messageDrafts.availability_request ? 'Re-generate' : 'Generate message'"></span>
+                              </button>
+                            </div>
+
+                            <template x-if="messageDrafts.availability_request">
+                              <div class="mt-3">
+                                <textarea x-model="messageDrafts.availability_request" rows="6"
+                                  class="w-full font-mono text-xs border border-slate-300 rounded p-2 bg-white"
+                                  placeholder="Edit before copying if you like…"></textarea>
+                                <div class="flex gap-2 mt-2 no-print">
+                                  <button @click="copyMessage('availability_request')" :disabled="copying === 'availability_request'"
+                                    class="bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm rounded-lg px-3 py-1.5 font-medium">
+                                    <span x-text="copying === 'availability_request' ? 'Copying…' : (isMessageSent('availability_request') ? '📋 Copy again' : '📋 Copy & mark sent')"></span>
+                                  </button>
+                                  <button @click="clearMessage('availability_request')"
+                                    class="text-xs text-red-600 hover:underline">Clear</button>
+                                </div>
+                              </div>
+                            </template>
                           </div>
                         </template>
 
@@ -1673,7 +1697,9 @@
                                 <span class="text-xl" x-text="step.icon"></span>
                                 <div>
                                   <h3 class="font-semibold" x-text="step.label"></h3>
-                                  <div class="text-xs text-slate-600 mt-0.5">Comms message coming in step 9.</div>
+                                  <div class="text-xs mt-0.5"
+                                    :class="isMessageSent('logistics_reminder') ? 'text-green-700' : 'text-slate-600'"
+                                    x-text="messageStatusLabel('logistics_reminder')"></div>
                                 </div>
                               </div>
                               <span x-show="step.windowOpen"
@@ -1739,6 +1765,29 @@
                                 </div>
                               </template>
                             </div>
+
+                            <!-- Comms: logistics + duty reminder -->
+                            <div class="mt-3 flex justify-end gap-2 no-print">
+                              <button @click="generateMessage('logistics_reminder')"
+                                class="bg-brand-600 hover:bg-brand-700 text-white text-xs rounded-lg px-3 py-1.5 font-medium">
+                                <span x-text="messageDrafts.logistics_reminder ? 'Re-generate message' : 'Generate message'"></span>
+                              </button>
+                            </div>
+
+                            <template x-if="messageDrafts.logistics_reminder">
+                              <div class="mt-2">
+                                <textarea x-model="messageDrafts.logistics_reminder" rows="7"
+                                  class="w-full font-mono text-xs border border-slate-300 rounded p-2 bg-white"></textarea>
+                                <div class="flex gap-2 mt-2 no-print">
+                                  <button @click="copyMessage('logistics_reminder')" :disabled="copying === 'logistics_reminder'"
+                                    class="bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm rounded-lg px-3 py-1.5 font-medium">
+                                    <span x-text="copying === 'logistics_reminder' ? 'Copying…' : (isMessageSent('logistics_reminder') ? '📋 Copy again' : '📋 Copy & mark sent')"></span>
+                                  </button>
+                                  <button @click="clearMessage('logistics_reminder')"
+                                    class="text-xs text-red-600 hover:underline">Clear</button>
+                                </div>
+                              </div>
+                            </template>
                           </div>
                         </template>
 
@@ -1751,7 +1800,9 @@
                                 <span class="text-xl" x-text="step.icon"></span>
                                 <div>
                                   <h3 class="font-semibold" x-text="step.label"></h3>
-                                  <div class="text-xs text-slate-600 mt-0.5">Set availability, generate rotation, then send game-day message (step 9).</div>
+                                  <div class="text-xs mt-0.5"
+                                    :class="isMessageSent('game_day_notice') ? 'text-green-700' : 'text-slate-600'"
+                                    x-text="messageStatusLabel('game_day_notice')"></div>
                                 </div>
                               </div>
                               <span x-show="step.windowOpen"
@@ -2044,6 +2095,32 @@
                                 </div>
                               </template>
                             </div>
+
+                            <!-- Comms: game day notice -->
+                            <div class="mt-3 flex justify-end gap-2 no-print">
+                              <button @click="generateMessage('game_day_notice')"
+                                class="bg-brand-600 hover:bg-brand-700 text-white text-xs rounded-lg px-3 py-1.5 font-medium">
+                                <span x-text="messageDrafts.game_day_notice ? 'Re-generate message' : 'Generate game day message'"></span>
+                              </button>
+                            </div>
+
+                            <template x-if="messageDrafts.game_day_notice">
+                              <div class="mt-2">
+                                <textarea x-model="messageDrafts.game_day_notice" rows="14"
+                                  class="w-full font-mono text-xs border border-slate-300 rounded p-2 bg-white"></textarea>
+                                <div class="flex gap-2 mt-2 no-print">
+                                  <button @click="copyMessage('game_day_notice')" :disabled="copying === 'game_day_notice'"
+                                    class="bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm rounded-lg px-3 py-1.5 font-medium">
+                                    <span x-text="copying === 'game_day_notice' ? 'Copying…' : (isMessageSent('game_day_notice') ? '📋 Copy again' : '📋 Copy & mark sent')"></span>
+                                  </button>
+                                  <button @click="clearMessage('game_day_notice')"
+                                    class="text-xs text-red-600 hover:underline">Clear</button>
+                                </div>
+                                <p class="text-[10px] text-slate-500 mt-1 italic">
+                                  Includes the rotation chart text. Re-generate after editing rotation, availability, or duty.
+                                </p>
+                              </div>
+                            </template>
                           </div>
                         </template>
                       </div>
@@ -2123,6 +2200,9 @@
                   <button @click="tab = 'staff'"
                     :class="tab === 'staff' ? 'border-brand-600 text-brand-700' : 'border-transparent text-slate-600'"
                     class="pb-2 border-b-2 text-sm font-medium">Staff</button>
+                  <button @click="tab = 'comms'"
+                    :class="tab === 'comms' ? 'border-brand-600 text-brand-700' : 'border-transparent text-slate-600'"
+                    class="pb-2 border-b-2 text-sm font-medium">Comms templates</button>
                 </div>
 
                 <p x-show="error" x-text="error" class="text-sm text-red-600 mb-3"></p>
@@ -2225,6 +2305,48 @@
                     </template>
                   </div>
                 </template>
+
+                <!-- COMMS TAB -->
+                <template x-if="!loading && tab === 'comms'">
+                  <div>
+                    <h2 class="text-lg font-semibold mb-2">Message templates</h2>
+                    <p class="text-xs text-slate-500 mb-4">
+                      Three messages per game — Day -7 availability request, Day -2 logistics + duty reminder, Day -1 game day notice with rotation.
+                      Use <code>{{token}}</code> placeholders below; the Game Week screen substitutes them when you click Generate.
+                    </p>
+
+                    <div class="bg-amber-50 border border-amber-200 rounded p-3 mb-4 text-xs">
+                      <div class="font-semibold mb-1">Available tokens:</div>
+                      <div class="font-mono text-amber-800">
+                        <template x-for="t in ALL_TOKENS_HELP" :key="t">
+                          <span class="inline-block bg-white border border-amber-300 rounded px-1 mr-1 mb-1" x-text="t"></span>
+                        </template>
+                      </div>
+                    </div>
+
+                    <div class="space-y-6">
+                      <template x-for="mt in Object.keys(MESSAGE_TYPE_LABELS)" :key="mt">
+                        <div class="bg-white border border-slate-200 rounded-xl p-5">
+                          <h3 class="text-sm font-semibold mb-2" x-text="MESSAGE_TYPE_LABELS[mt]"></h3>
+                          <fieldset :disabled="!isAdmin()">
+                            <textarea x-model="templateDrafts[mt]" rows="10"
+                              class="w-full font-mono text-xs border border-slate-300 rounded p-3"
+                              placeholder="Type your template here, using {{tokens}} as needed."></textarea>
+                            <div x-show="isAdmin()" class="flex gap-2 mt-3">
+                              <button @click="saveTemplate(mt)" :disabled="saving"
+                                class="bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm rounded-lg px-4 py-2 font-medium">
+                                <span x-text="saving ? 'Saving…' : 'Save template'"></span>
+                              </button>
+                            </div>
+                            <p x-show="!isAdmin()" class="text-xs text-slate-500 mt-2">
+                              Only club admins can edit templates.
+                            </p>
+                          </fieldset>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
+                </template>
               </div>
             </template>
 
@@ -2238,6 +2360,7 @@
   <!-- App scripts: order matters — data layer first, then app, then views -->
   <script src="js/lib/data.js"></script>
   <script src="js/lib/rotation.js"></script>
+  <script src="js/lib/comms.js"></script>
   <script src="js/app.js"></script>
   <script src="js/views/dashboard.js"></script>
   <script src="js/views/settings.js"></script>
