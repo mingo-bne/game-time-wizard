@@ -246,6 +246,10 @@ window.GTWData = (function () {
   }
 
   // ---------- BORROWED PLAYERS (per game) ----------
+  // Per ADR-026 borrowed players are typed as free text. Schema retains
+  // an optional player_id for legacy/admin use, but the v1 UI only sets
+  // placeholder_name. Display logic in callers should use:
+  //   row.player?.full_name || row.placeholder_name
 
   async function listBorrowedPlayers(gameId) {
     return check(await sb()
@@ -254,12 +258,28 @@ window.GTWData = (function () {
       .eq('game_id', gameId));
   }
 
-  async function addBorrowedPlayer(gameId, playerId, priorityWeight = 0.5, notes) {
+  // addBorrowedPlayer({ placeholderName, playerId, priorityWeight, notes })
+  // Pass placeholderName for the standard text-field path.
+  // playerId is supported for admin/SQL paths but the v1 UI doesn't use it.
+  async function addBorrowedPlayer(gameId, opts = {}) {
+    const placeholderName = (opts.placeholderName || '').trim();
+    const playerId        = opts.playerId || null;
+    const priorityWeight  = opts.priorityWeight ?? 0.5;
+    const notes           = opts.notes || null;
+
+    if (!placeholderName && !playerId) {
+      throw new Error('Borrowed player needs a name (or a player_id).');
+    }
+    if (placeholderName && playerId) {
+      throw new Error('Borrowed player must be either a name OR a player_id, not both.');
+    }
+
     return check(await sb().from('game_borrowed_players').insert({
-      game_id: gameId,
-      player_id: playerId,
-      priority_weight: priorityWeight,
-      notes: notes || null
+      game_id:          gameId,
+      player_id:        playerId,
+      placeholder_name: placeholderName || null,
+      priority_weight:  priorityWeight,
+      notes:            notes
     }).select().single());
   }
 
@@ -278,26 +298,11 @@ window.GTWData = (function () {
       .eq('id', borrowId));
   }
 
-  // Players in the club NOT on this team's roster — candidates to borrow
-  async function listBorrowCandidates(clubId, teamId) {
-    // Get players on this team
-    const { data: memberships, error: mErr } = await sb()
-      .from('team_memberships')
-      .select('player_id')
-      .eq('team_id', teamId);
-    if (mErr) throw new Error(mErr.message);
-    const onTeamIds = new Set((memberships || []).map(m => m.player_id));
-
-    // Get all club players
-    const { data: all, error: aErr } = await sb()
-      .from('players')
-      .select('id, full_name, dob, family:family_id ( family_name )')
-      .eq('club_id', clubId)
-      .eq('is_active_in_club', true)
-      .order('full_name');
-    if (aErr) throw new Error(aErr.message);
-    return (all || []).filter(p => !onTeamIds.has(p.id));
-  }
+  // listBorrowCandidates removed in ADR-026 — borrowed players are typed
+  // by name now, no candidate picker. Kept as a stub for callers that may
+  // still reference it; returns an empty list so the old picker UI degrades
+  // gracefully if any reference lingers.
+  async function listBorrowCandidates() { return []; }
 
   // ---------- ROTATION PLANS ----------
 

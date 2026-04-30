@@ -42,10 +42,9 @@ function gameWeekView(currentClub, currentStaff, gameId, onNavigate) {
       game_day_notice: false
     },
     copying: '',               // message_type currently being copied (for spinner)
-    showBorrowPicker: false,
-    borrowCandidates: [],
-    borrowSearch: '',
-    selectedBorrowPlayer: '',
+    // Borrowed-player text-field state (ADR-026)
+    showBorrowForm: false,
+    borrowName: '',
     borrowWeight: 0.5,
 
     // Post-game form state
@@ -100,46 +99,46 @@ function gameWeekView(currentClub, currentStaff, gameId, onNavigate) {
       this.rotationPlan = plan;
     },
 
-    // ============ BORROWED PLAYERS ============
+    // ============ BORROWED PLAYERS (text-field, ADR-026) ============
 
-    async openBorrowPicker() {
-      try {
-        this.borrowCandidates = await window.GTWData.listBorrowCandidates(currentClub.id, this.game.team.id);
-        // Exclude players already borrowed for this game
-        const alreadyIds = new Set(this.borrowedPlayers.map(b => b.player_id));
-        this.borrowCandidates = this.borrowCandidates.filter(p => !alreadyIds.has(p.id));
-        this.selectedBorrowPlayer = '';
-        this.borrowWeight = 0.5;
-        this.borrowSearch = '';
-        this.showBorrowPicker = true;
-      } catch (err) {
-        this.error = err.message;
-      }
+    openBorrowForm() {
+      this.borrowName = '';
+      this.borrowWeight = 0.5;
+      this.showBorrowForm = true;
     },
 
-    filteredBorrowCandidates() {
-      const q = this.borrowSearch.trim().toLowerCase();
-      if (!q) return this.borrowCandidates;
-      return this.borrowCandidates.filter(p =>
-        p.full_name.toLowerCase().includes(q) ||
-        (p.family?.family_name || '').toLowerCase().includes(q));
-    },
-
-    cancelBorrowPicker() {
-      this.showBorrowPicker = false;
-      this.selectedBorrowPlayer = '';
-      this.borrowSearch = '';
+    cancelBorrowForm() {
+      this.showBorrowForm = false;
+      this.borrowName = '';
     },
 
     async addBorrow() {
-      if (!this.selectedBorrowPlayer) return;
+      const name = (this.borrowName || '').trim();
+      if (!name) return;
+      // Friendly duplicate check (also enforced by partial unique index)
+      const existing = this.borrowedPlayers
+        .map(b => (b.placeholder_name || b.player?.full_name || '').toLowerCase())
+        .filter(Boolean);
+      if (existing.includes(name.toLowerCase())) {
+        this.error = `"${name}" is already on the borrow list for this game.`;
+        return;
+      }
       try {
-        await window.GTWData.addBorrowedPlayer(gameId, this.selectedBorrowPlayer, parseFloat(this.borrowWeight) || 0.5);
-        this.cancelBorrowPicker();
+        await window.GTWData.addBorrowedPlayer(gameId, {
+          placeholderName: name,
+          priorityWeight: parseFloat(this.borrowWeight) || 0.5
+        });
+        this.cancelBorrowForm();
         await this.loadAvailabilityAndRotation();
       } catch (err) {
         this.error = err.message;
       }
+    },
+
+    // Display helper for a borrow row — handles either real-player link or
+    // placeholder name.
+    borrowDisplayName(b) {
+      return b?.player?.full_name || b?.placeholder_name || 'Borrowed player';
     },
 
     async updateBorrowWeight(borrow, weight) {
@@ -248,6 +247,10 @@ function gameWeekView(currentClub, currentStaff, gameId, onNavigate) {
 
     // Combined list: regulars (from roster, active only) + borrowed
     // Each entry: { player_id, full_name, jersey_no, positions, is_borrowed, priority_weight, borrow_id }
+    //
+    // Per ADR-026: borrowed players are typically free-text placeholders with
+    // no real player_id. We synthesise a stable identifier from the borrow
+    // record's own UUID so the rotation engine and chart UI work unchanged.
     allEligiblePlayers() {
       const regulars = this.roster
         .filter(m => m.is_active && m.player)
@@ -262,11 +265,14 @@ function gameWeekView(currentClub, currentStaff, gameId, onNavigate) {
           borrow_id: null
         }));
       const borrowed = this.borrowedPlayers.map(b => ({
-        player_id: b.player.id,
-        full_name: b.player.full_name,
+        // Synthetic id when no real player_id (placeholder borrow). Borrow
+        // record id is a UUID — safe to use as the rotation engine's player
+        // identifier without colliding with real players.id.
+        player_id: b.player?.id || b.id,
+        full_name: b.player?.full_name || b.placeholder_name || 'Borrowed player',
         jersey_no: null,                    // borrowed players don't have a jersey on this team
         positions: [],                      // borrowed don't bring positions from elsewhere
-        family_name: b.player.family?.family_name || null,
+        family_name: b.player?.family?.family_name || null,
         is_borrowed: true,
         priority_weight: parseFloat(b.priority_weight),
         borrow_id: b.id
@@ -275,8 +281,12 @@ function gameWeekView(currentClub, currentStaff, gameId, onNavigate) {
     },
 
     unconfirmedCount() {
+      // Borrowed players are auto-available (no per-player availability row),
+      // so they don't count as "unconfirmed".
       const confirmedIds = new Set(this.availabilities.map(a => a.player_id));
-      return this.allEligiblePlayers().filter(p => !confirmedIds.has(p.player_id)).length;
+      return this.allEligiblePlayers()
+        .filter(p => !p.is_borrowed && !confirmedIds.has(p.player_id))
+        .length;
     },
 
     async setAvailability(playerId, status) {
@@ -293,10 +303,14 @@ function gameWeekView(currentClub, currentStaff, gameId, onNavigate) {
     },
 
     async markAllAvailable() {
-      if (!confirm('Default all unconfirmed players (including borrowed) to "Available"?')) return;
+      if (!confirm('Default all unconfirmed regular players to "Available"?')) return;
       try {
         const confirmedIds = new Set(this.availabilities.map(a => a.player_id));
         for (const p of this.allEligiblePlayers()) {
+          // Skip borrowed players — their player_id is synthetic (or null on
+          // the DB side), so it can't be inserted into availabilities (which
+          // FK-references players.id). Borrowed are treated as auto-available.
+          if (p.is_borrowed) continue;
           if (!confirmedIds.has(p.player_id)) {
             await window.GTWData.upsertAvailability(gameId, p.player_id, 'available');
           }
@@ -314,8 +328,11 @@ function gameWeekView(currentClub, currentStaff, gameId, onNavigate) {
     },
 
     availablePlayers() {
-      // All eligible players (regulars + borrowed) where availability=available
-      return this.allEligiblePlayers().filter(p => this.availabilityFor(p.player_id) === 'available');
+      // Regulars must be explicitly marked available; borrowed players are
+      // auto-available (placeholder borrows have no FK into availabilities).
+      return this.allEligiblePlayers().filter(p =>
+        p.is_borrowed || this.availabilityFor(p.player_id) === 'available'
+      );
     },
 
     async generateRotationNow() {
@@ -562,16 +579,19 @@ function gameWeekView(currentClub, currentStaff, gameId, onNavigate) {
         id: p.player_id,
         full_name: p.full_name + (p.is_borrowed ? ' (borrowed)' : '')
       }));
+      // Borrowed players (ADR-026) are auto-available and never "unconfirmed"
+      // — exclude from the unconfirmed list, include in the headcount.
       const unconfirmedNames = this.allEligiblePlayers()
-        .filter(p => !this.availabilityFor(p.player_id))
+        .filter(p => !p.is_borrowed && !this.availabilityFor(p.player_id))
         .map(p => '- ' + p.full_name)
         .join('\n');
+      const borrowedAutoAvailable = this.borrowedPlayers.length;
       return window.GTWComms.buildContext({
         game: this.game,
         dutyAssignment: this.dutyAssignment,
         rotationPlan: this.rotationPlan,
         players: players,
-        availableCount: this.availabilityCount('available'),
+        availableCount: this.availabilityCount('available') + borrowedAutoAvailable,
         unconfirmedList: unconfirmedNames || '(none)'
       });
     },
