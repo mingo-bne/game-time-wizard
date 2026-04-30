@@ -1917,6 +1917,17 @@
                                             <td class="p-2 sticky left-0 bg-white border-r border-slate-200 whitespace-nowrap">
                                               <span class="font-mono text-slate-500 mr-1" x-text="row.jersey_no ?? ''"></span>
                                               <span class="font-medium" x-text="row.full_name"></span>
+                                              <template x-if="row.positions && row.positions.length > 0">
+                                                <span class="ml-1.5 inline-flex gap-0.5">
+                                                  <template x-for="pos in row.positions" :key="pos">
+                                                    <span class="text-[9px] font-mono uppercase tracking-tight bg-slate-100 text-slate-600 rounded px-1 py-0.5"
+                                                      x-text="pos"></span>
+                                                  </template>
+                                                </span>
+                                              </template>
+                                              <template x-if="row.is_borrowed">
+                                                <span class="ml-1.5 text-[9px] uppercase tracking-tight bg-amber-100 text-amber-700 rounded px-1 py-0.5">Borrowed</span>
+                                              </template>
                                             </td>
                                             <template x-for="(onCourt, i) in row.blocks" :key="i">
                                               <td
@@ -1928,13 +1939,26 @@
                                                   'bg-green-50 hover:bg-green-100 text-green-600': !onCourt && isSwapTargetColumn(i),
                                                   'text-slate-300': !onCourt && !isSwapTargetColumn(i)
                                                 }"
-                                                class="text-center p-2 border-r border-slate-100">
+                                                class="text-center p-2 border-r border-slate-100 select-none">
                                                 <span x-text="onCourt ? '●' : (isSwapTargetColumn(i) ? '+' : '·')"></span>
                                               </td>
                                             </template>
                                             <td class="text-right p-2 sticky right-0 bg-white border-l border-slate-200 font-mono font-semibold" x-text="row.total_minutes"></td>
                                           </tr>
                                         </template>
+
+                                        <!-- Positions-on-court summary row -->
+                                        <tr class="border-t-2 border-slate-300 bg-slate-50">
+                                          <td class="p-2 sticky left-0 bg-slate-50 border-r border-slate-200 text-[10px] uppercase tracking-wider text-slate-600 font-semibold">
+                                            On court (positions)
+                                          </td>
+                                          <template x-for="i in rotationMatrix().columnHeaders.length" :key="'pos-' + i">
+                                            <td class="text-center p-2 border-r border-slate-100 text-[10px] text-slate-600"
+                                              x-text="positionSummaryForBlock(i - 1)">
+                                            </td>
+                                          </template>
+                                          <td class="p-2 sticky right-0 bg-slate-50 border-l border-slate-200"></td>
+                                        </tr>
                                       </tbody>
                                     </table>
                                   </div>

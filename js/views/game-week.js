@@ -218,7 +218,7 @@ function gameWeekView(currentClub, currentStaff, gameId, onNavigate) {
     },
 
     // Combined list: regulars (from roster, active only) + borrowed
-    // Each entry: { player_id, full_name, jersey_no, is_borrowed, priority_weight, borrow_id (if borrowed) }
+    // Each entry: { player_id, full_name, jersey_no, positions, is_borrowed, priority_weight, borrow_id }
     allEligiblePlayers() {
       const regulars = this.roster
         .filter(m => m.is_active && m.player)
@@ -226,6 +226,7 @@ function gameWeekView(currentClub, currentStaff, gameId, onNavigate) {
           player_id: m.player.id,
           full_name: m.player.full_name,
           jersey_no: m.jersey_no,
+          positions: m.positions || [],
           family_name: m.player.family?.family_name || null,
           is_borrowed: false,
           priority_weight: 1.0,
@@ -235,6 +236,7 @@ function gameWeekView(currentClub, currentStaff, gameId, onNavigate) {
         player_id: b.player.id,
         full_name: b.player.full_name,
         jersey_no: null,                    // borrowed players don't have a jersey on this team
+        positions: [],                      // borrowed don't bring positions from elsewhere
         family_name: b.player.family?.family_name || null,
         is_borrowed: true,
         priority_weight: parseFloat(b.priority_weight),
@@ -350,10 +352,35 @@ function gameWeekView(currentClub, currentStaff, gameId, onNavigate) {
       if (!this.rotationPlan?.plan) return null;
       const players = this.availablePlayers().map(p => ({
         id: p.player_id,
-        full_name: p.full_name + (p.is_borrowed ? ' (borrowed)' : ''),
-        jersey_no: p.jersey_no
+        full_name: p.full_name,
+        jersey_no: p.jersey_no,
+        positions: p.positions,
+        is_borrowed: p.is_borrowed
       }));
       return window.GTWRotation.toMatrix(this.rotationPlan.plan, players);
+    },
+
+    // For a given block index, summarise positions on court — e.g. "PG 2SG SF C" or "PG 2SG ?"
+    positionSummaryForBlock(blockIdx) {
+      if (!this.rotationPlan) return '—';
+      const loc = this.locateBlock(blockIdx);
+      if (!loc || loc.block.on_court.length === 0) return '—';
+      const allPlayers = this.availablePlayers();
+      const counts = {};
+      for (const playerId of loc.block.on_court) {
+        const p = allPlayers.find(x => x.player_id === playerId);
+        if (!p || !p.positions || p.positions.length === 0) {
+          counts['?'] = (counts['?'] || 0) + 1;
+          continue;
+        }
+        const pos = p.positions[0];   // primary position
+        counts[pos] = (counts[pos] || 0) + 1;
+      }
+      const order = ['PG', 'SG', 'SF', 'PF', 'C', '?'];
+      return order
+        .filter(pos => counts[pos])
+        .map(pos => counts[pos] > 1 ? `${counts[pos]}${pos}` : pos)
+        .join(' ');
     },
 
     minutesByPlayer() {

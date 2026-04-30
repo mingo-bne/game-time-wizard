@@ -144,7 +144,7 @@ window.GTWRotation = (function () {
   }
 
   // Format the plan as a player-row × block-column matrix for printable display.
-  // Returns: { columnHeaders, rows: [ { player_id, full_name, blocks: [bool], total_minutes } ] }
+  // Returns: { columnHeaders, rows: [ { player_id, full_name, jersey_no, positions, blocks: [bool], total_minutes } ] }
   function toMatrix(plan, players) {
     const playerById = Object.fromEntries(players.map(p => [p.id, p]));
     const columnHeaders = [];
@@ -154,6 +154,8 @@ window.GTWRotation = (function () {
         player_id: p.id,
         full_name: p.full_name,
         jersey_no: p.jersey_no,
+        positions: p.positions || [],
+        is_borrowed: !!p.is_borrowed,
         blocks: [],
         total_minutes: 0
       };
