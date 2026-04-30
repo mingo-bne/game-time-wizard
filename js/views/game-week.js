@@ -15,7 +15,7 @@ function gameWeekView(currentClub, currentStaff, gameId, onNavigate) {
     dutyPool: [],
     dutyAssignment: null,
     showDutyReassign: false,
-    selectedDutyFamily: '',
+    selectedDutyPlayer: '',
 
     // Post-game form state
     postGame: {
@@ -60,8 +60,11 @@ function gameWeekView(currentClub, currentStaff, gameId, onNavigate) {
       this.dutyAssignment = allAssignments.find(a => a.game_id === gameId) || null;
     },
 
-    dutyFamilyName() {
-      return this.dutyAssignment?.family?.family_name || null;
+    dutyPlayerLabel() {
+      const a = this.dutyAssignment;
+      if (!a?.player) return null;
+      const fam = a.player.family?.family_name;
+      return fam ? `${a.player.full_name} (${fam})` : a.player.full_name;
     },
 
     async toggleDutyLock() {
@@ -75,19 +78,23 @@ function gameWeekView(currentClub, currentStaff, gameId, onNavigate) {
     },
 
     startDutyReassign() {
-      this.selectedDutyFamily = this.dutyAssignment?.family_id || '';
+      this.selectedDutyPlayer = this.dutyAssignment?.player_id || '';
       this.showDutyReassign = true;
     },
 
     cancelDutyReassign() {
       this.showDutyReassign = false;
-      this.selectedDutyFamily = '';
+      this.selectedDutyPlayer = '';
+    },
+
+    eligibleDutyPool() {
+      return this.dutyPool.filter(m => m.duty_eligible);
     },
 
     async saveDutyReassign() {
-      if (!this.selectedDutyFamily) return;
+      if (!this.selectedDutyPlayer) return;
       try {
-        await window.GTWData.upsertDutyAssignment(gameId, this.selectedDutyFamily, true);   // manual = locked
+        await window.GTWData.upsertDutyAssignment(gameId, this.selectedDutyPlayer, true);   // manual = locked
         this.showDutyReassign = false;
         await this.loadDuty();
       } catch (err) {

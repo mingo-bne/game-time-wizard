@@ -62,14 +62,18 @@ function teamDetailView(currentClub, currentStaff, teamId, onNavigate) {
       }
     },
 
-    // Map family_id → number of duty assignments (across all this team's games)
+    // Map player_id → number of duty assignments (across all this team's games)
     dutyCounts() {
       const counts = {};
-      for (const f of this.dutyPool) counts[f.id] = 0;
+      for (const m of this.dutyPool) counts[m.player.id] = 0;
       for (const a of this.dutyAssignments) {
-        if (counts[a.family_id] !== undefined) counts[a.family_id]++;
+        if (counts[a.player_id] !== undefined) counts[a.player_id]++;
       }
       return counts;
+    },
+
+    eligiblePoolCount() {
+      return this.dutyPool.filter(m => m.duty_eligible).length;
     },
 
     formatDutyDate(d) {
@@ -78,9 +82,18 @@ function teamDetailView(currentClub, currentStaff, teamId, onNavigate) {
       return dt.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
     },
 
-    exclusionsForFamily(familyId) {
-      const f = this.dutyPool.find(x => x.id === familyId);
-      return f?.duty_pool_exclusions || [];
+    exclusionsForPlayer(playerId) {
+      const m = this.dutyPool.find(x => x.player?.id === playerId);
+      return m?.player?.duty_pool_exclusions || [];
+    },
+
+    async toggleDutyEligibility(membership) {
+      try {
+        await window.GTWData.setDutyEligibility(membership.id, !membership.duty_eligible);
+        await this.loadDuty();
+      } catch (err) {
+        this.dutyError = err.message;
+      }
     },
 
     exclusionLabel(e) {
@@ -96,9 +109,9 @@ function teamDetailView(currentClub, currentStaff, teamId, onNavigate) {
       return type + dates + (e.reason ? ` — ${e.reason}` : '');
     },
 
-    startAddExclusion(familyId) {
+    startAddExclusion(playerId) {
       this.exclusionForm = emptyExclusionForm();
-      this.showExclusionForm = familyId;
+      this.showExclusionForm = playerId;
     },
 
     cancelExclusionForm() {

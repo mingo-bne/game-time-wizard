@@ -560,14 +560,14 @@
                       </template>
                     </div>
 
-                    <!-- Bench duty -->
+                    <!-- Bench duty (player-based) -->
                     <div class="bg-white border border-slate-200 rounded-xl p-6">
                       <div class="flex items-center justify-between mb-4">
                         <div>
                           <h2 class="text-lg font-semibold">Bench duty</h2>
-                          <p class="text-xs text-slate-500">Equal-turn allocation across the season. Locked assignments stay; unlocked ones reshuffle on regenerate.</p>
+                          <p class="text-xs text-slate-500">Per-player rotation. Untick siblings so a family doesn't get hit twice. Algorithm respects exclusions and game-day availability.</p>
                         </div>
-                        <button x-show="canEdit() && dutyPool.length > 0" @click="runGenerateRoster()" :disabled="dutyLoading"
+                        <button x-show="canEdit() && eligiblePoolCount() > 0" @click="runGenerateRoster()" :disabled="dutyLoading"
                           class="bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm rounded-lg px-3 py-1.5 font-medium whitespace-nowrap">
                           <span x-text="dutyLoading ? 'Generating…' : 'Generate roster'"></span>
                         </button>
@@ -577,29 +577,43 @@
 
                       <!-- Empty state -->
                       <div x-show="dutyPool.length === 0" class="text-sm text-slate-500 italic">
-                        No families in the duty pool. Add players (with family links via Roster) to this team first.
+                        No active players on this team. Add players via Roster first.
                       </div>
 
                       <template x-if="dutyPool.length > 0">
                         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-                          <!-- Duty pool families -->
+                          <!-- Duty pool players -->
                           <div>
-                            <h3 class="text-sm font-semibold text-slate-700 mb-2">Duty pool (<span x-text="dutyPool.length"></span> families)</h3>
+                            <h3 class="text-sm font-semibold text-slate-700 mb-2">
+                              Duty pool — <span x-text="eligiblePoolCount()"></span> of <span x-text="dutyPool.length"></span> players in rotation
+                            </h3>
                             <div class="space-y-2">
-                              <template x-for="f in dutyPool" :key="f.id">
-                                <div class="border border-slate-200 rounded-lg p-3">
+                              <template x-for="m in dutyPool" :key="m.id">
+                                <div class="border border-slate-200 rounded-lg p-3"
+                                     :class="!m.duty_eligible && 'opacity-60 bg-slate-50'">
                                   <div class="flex items-center justify-between mb-1">
-                                    <div class="font-medium text-sm" x-text="f.family_name"></div>
-                                    <div class="text-xs text-slate-500">
-                                      Duties: <span class="font-mono" x-text="dutyCounts()[f.id] || 0"></span>
+                                    <div class="flex items-center gap-2 min-w-0">
+                                      <input type="checkbox" :checked="m.duty_eligible"
+                                        :disabled="!canEdit()"
+                                        @change="toggleDutyEligibility(m)"
+                                        class="rounded text-brand-600 focus:ring-brand-500" />
+                                      <div class="min-w-0">
+                                        <div class="font-medium text-sm truncate" x-text="m.player?.full_name || '—'"></div>
+                                        <template x-if="m.player?.family">
+                                          <div class="text-xs text-slate-500 truncate" x-text="m.player.family.family_name + ' Family'"></div>
+                                        </template>
+                                      </div>
+                                    </div>
+                                    <div class="text-xs text-slate-500 ml-2 shrink-0">
+                                      Duties: <span class="font-mono" x-text="dutyCounts()[m.player.id] || 0"></span>
                                     </div>
                                   </div>
 
                                   <!-- Existing exclusions -->
-                                  <template x-if="exclusionsForFamily(f.id).length > 0">
+                                  <template x-if="exclusionsForPlayer(m.player.id).length > 0">
                                     <div class="mt-2 space-y-1">
-                                      <template x-for="e in exclusionsForFamily(f.id)" :key="e.id">
+                                      <template x-for="e in exclusionsForPlayer(m.player.id)" :key="e.id">
                                         <div class="flex items-center justify-between text-xs bg-amber-50 border border-amber-200 rounded px-2 py-1">
                                           <span x-text="exclusionLabel(e)"></span>
                                           <button x-show="canEdit()" @click="removeExclusion(e.id)" class="text-red-600 hover:underline ml-2">×</button>
@@ -609,7 +623,7 @@
                                   </template>
 
                                   <!-- Add exclusion -->
-                                  <template x-if="showExclusionForm === f.id">
+                                  <template x-if="showExclusionForm === m.player.id">
                                     <div class="mt-2 p-2 bg-slate-50 rounded space-y-2">
                                       <div class="grid grid-cols-1 gap-2">
                                         <select x-model="exclusionForm.exclusion_type"
@@ -640,8 +654,8 @@
                                       </div>
                                     </div>
                                   </template>
-                                  <template x-if="showExclusionForm !== f.id">
-                                    <button x-show="canEdit()" @click="startAddExclusion(f.id)"
+                                  <template x-if="showExclusionForm !== m.player.id && m.duty_eligible">
+                                    <button x-show="canEdit()" @click="startAddExclusion(m.player.id)"
                                       class="mt-1 text-xs text-brand-600 hover:underline">+ Add exclusion</button>
                                   </template>
                                 </div>
@@ -666,7 +680,10 @@
                                       </template>
                                     </div>
                                     <div class="text-xs text-slate-600 mt-0.5">
-                                      🪑 <span x-text="a.family?.family_name || '(family removed)'"></span>
+                                      🪑 <span x-text="a.player?.full_name || '(player removed)'"></span>
+                                      <template x-if="a.player?.family?.family_name">
+                                        <span class="text-slate-400"> · <span x-text="a.player.family.family_name + ' Family'"></span></span>
+                                      </template>
                                     </div>
                                   </div>
                                   <div class="flex items-center gap-2 shrink-0">
@@ -1576,15 +1593,15 @@
                                 class="text-[10px] uppercase tracking-wider bg-brand-600 text-white rounded px-2 py-0.5">Now</span>
                             </div>
 
-                            <!-- Bench duty inline -->
+                            <!-- Bench duty inline (player-based) -->
                             <div class="mt-2 p-3 bg-slate-50 rounded-lg">
                               <div class="flex items-center justify-between">
                                 <div class="text-sm">
                                   <span class="text-slate-600">🪑 Bench duty:</span>
-                                  <template x-if="dutyFamilyName()">
-                                    <span class="font-semibold ml-1" x-text="dutyFamilyName()"></span>
+                                  <template x-if="dutyPlayerLabel()">
+                                    <span class="font-semibold ml-1" x-text="dutyPlayerLabel()"></span>
                                   </template>
-                                  <template x-if="!dutyFamilyName()">
+                                  <template x-if="!dutyPlayerLabel()">
                                     <span class="italic text-slate-500 ml-1">Not assigned</span>
                                   </template>
                                   <template x-if="dutyAssignment?.is_locked">
@@ -1609,17 +1626,18 @@
                               <!-- Reassign form -->
                               <template x-if="showDutyReassign">
                                 <div class="mt-3 pt-3 border-t border-slate-200">
-                                  <template x-if="dutyPool.length === 0">
+                                  <template x-if="eligibleDutyPool().length === 0">
                                     <p class="text-xs text-slate-500 italic">
-                                      No families in the duty pool. Add players (with family links) to this team's roster first.
+                                      No duty-eligible players. Open the team's Bench Duty section and tick at least one player.
                                     </p>
                                   </template>
-                                  <template x-if="dutyPool.length > 0">
+                                  <template x-if="eligibleDutyPool().length > 0">
                                     <div class="flex gap-2 items-center">
-                                      <select x-model="selectedDutyFamily" class="flex-1 border border-slate-300 rounded px-2 py-1.5 text-sm">
-                                        <option value="">— Pick a family —</option>
-                                        <template x-for="f in dutyPool" :key="f.id">
-                                          <option :value="f.id" x-text="f.family_name"></option>
+                                      <select x-model="selectedDutyPlayer" class="flex-1 border border-slate-300 rounded px-2 py-1.5 text-sm">
+                                        <option value="">— Pick a player —</option>
+                                        <template x-for="m in eligibleDutyPool()" :key="m.id">
+                                          <option :value="m.player.id"
+                                            x-text="m.player.full_name + (m.player.family?.family_name ? ' (' + m.player.family.family_name + ')' : '')"></option>
                                         </template>
                                       </select>
                                       <button @click="saveDutyReassign()"
