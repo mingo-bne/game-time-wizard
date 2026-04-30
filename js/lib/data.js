@@ -103,6 +103,7 @@ window.GTWData = (function () {
       season_id: seasonId,
       name: fields.name,
       age_group: fields.age_group || null,
+      division:  fields.division  || null,
       rule_mode: fields.rule_mode || 'equal_opportunity',
       game_format_periods: fields.game_format_periods || 2,
       game_format_minutes_per_period: fields.game_format_minutes_per_period || 20
@@ -434,6 +435,8 @@ window.GTWData = (function () {
     return check(await sb().from('opponents').insert({
       club_id: clubId,
       name: fields.name,
+      age_group: fields.age_group || null,
+      division:  fields.division  || null,
       logo_url: fields.logo_url || null,
       primary_color: fields.primary_color || null,
       notes: fields.notes || null

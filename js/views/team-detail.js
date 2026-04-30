@@ -29,6 +29,7 @@ function teamDetailView(currentClub, currentStaff, teamId, onNavigate) {
       this.teamForm = {
         name: this.team.name,
         age_group: this.team.age_group || '',
+        division: this.team.division || '',
         rule_mode: this.team.rule_mode,
         game_format_periods: this.team.game_format_periods,
         game_format_minutes_per_period: this.team.game_format_minutes_per_period
@@ -54,6 +55,7 @@ function teamDetailView(currentClub, currentStaff, teamId, onNavigate) {
         await window.GTWData.updateTeam(teamId, {
           name: this.teamForm.name.trim(),
           age_group: this.teamForm.age_group.trim() || null,
+          division: this.teamForm.division.trim() || null,
           rule_mode: this.teamForm.rule_mode,
           game_format_periods: parseInt(this.teamForm.game_format_periods, 10),
           game_format_minutes_per_period: parseInt(this.teamForm.game_format_minutes_per_period, 10)

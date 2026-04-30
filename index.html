@@ -229,6 +229,7 @@
                       <tr>
                         <th class="text-left p-3">Team</th>
                         <th class="text-left p-3">Age group</th>
+                        <th class="text-left p-3">Division</th>
                         <th class="text-left p-3">Format</th>
                         <th class="text-left p-3">Rule mode</th>
                         <th class="text-right p-3"></th>
@@ -241,6 +242,7 @@
                             <a href="#" @click.prevent="open(t)" class="text-brand-700 hover:underline" x-text="t.name"></a>
                           </td>
                           <td class="p-3 text-slate-600" x-text="t.age_group || '—'"></td>
+                          <td class="p-3 text-slate-600" x-text="t.division || '—'"></td>
                           <td class="p-3 text-slate-600" x-text="formatLabel(t)"></td>
                           <td class="p-3 text-slate-600" x-text="ruleLabel(t)"></td>
                           <td class="p-3 text-right">
@@ -266,8 +268,14 @@
                         </div>
                         <div>
                           <label class="block text-sm font-medium mb-1">Age group</label>
-                          <input x-model="newTeam.age_group" placeholder="U14"
+                          <input x-model="newTeam.age_group" placeholder="B10"
                             class="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                        </div>
+                        <div>
+                          <label class="block text-sm font-medium mb-1">Division</label>
+                          <input x-model="newTeam.division" placeholder="Div 5"
+                            class="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                          <p class="text-xs text-slate-500 mt-1">Used to filter opponents in fixtures.</p>
                         </div>
                         <div>
                           <label class="block text-sm font-medium mb-1">Rule mode</label>
@@ -317,6 +325,9 @@
                       <h1 class="text-2xl font-bold" x-text="team.name"></h1>
                       <div class="text-sm text-slate-500">
                         <span x-text="team.age_group || 'No age group'"></span>
+                        <template x-if="team.division">
+                          <span> · <span x-text="team.division"></span></span>
+                        </template>
                       </div>
                     </div>
 
@@ -334,6 +345,11 @@
                           <div>
                             <label class="block text-sm font-medium mb-1">Age group</label>
                             <input x-model="teamForm.age_group" class="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                          </div>
+                          <div>
+                            <label class="block text-sm font-medium mb-1">Division</label>
+                            <input x-model="teamForm.division" placeholder="Div 5"
+                              class="w-full border border-slate-300 rounded-lg px-3 py-2" />
                           </div>
                           <div>
                             <label class="block text-sm font-medium mb-1">Rule mode</label>
@@ -1146,28 +1162,51 @@
                               class="w-full border border-slate-300 rounded-lg px-3 py-2" />
                           </div>
                           <div class="md:col-span-2">
-                            <label class="block text-sm font-medium mb-1">Opposition</label>
+                            <div class="flex items-center justify-between mb-1">
+                              <label class="block text-sm font-medium">Opposition</label>
+                              <label class="flex items-center gap-1.5 text-xs text-slate-500 cursor-pointer">
+                                <input type="checkbox" x-model="filterByDivision" />
+                                <span>Filter by team's age group + division</span>
+                              </label>
+                            </div>
                             <div class="flex gap-2">
                               <select x-model="form.opposition_id"
                                 class="flex-1 border border-slate-300 rounded-lg px-3 py-2">
                                 <option value="">— Pick an opponent —</option>
-                                <template x-for="o in opponents" :key="o.id">
-                                  <option :value="o.id" x-text="o.name"></option>
+                                <template x-for="o in filteredOpponents()" :key="o.id">
+                                  <option :value="o.id"
+                                    x-text="o.name + (o.age_group || o.division ? ' (' + [o.age_group, o.division].filter(Boolean).join(' / ') + ')' : '')"></option>
                                 </template>
                               </select>
-                              <button type="button" @click="showNewOpponent = !showNewOpponent"
-                                class="text-sm text-brand-600 hover:text-brand-700 px-3 py-2 border border-brand-200 rounded-lg">
+                              <button type="button" @click="showNewOpponent ? (showNewOpponent = false) : startAddOpponent()"
+                                class="text-sm text-brand-600 hover:text-brand-700 px-3 py-2 border border-brand-200 rounded-lg whitespace-nowrap">
                                 + New
                               </button>
                             </div>
+                            <template x-if="filterByDivision && filteredOpponents().length === 0">
+                              <p class="mt-1 text-xs text-amber-600">
+                                No opponents match this team's age group + division. Click <strong>+ New</strong> or untick the filter.
+                              </p>
+                            </template>
                             <template x-if="showNewOpponent">
-                              <div class="mt-2 flex gap-2">
-                                <input type="text" x-model="newOpponentName" placeholder="New opponent name"
-                                  class="flex-1 border border-slate-300 rounded px-3 py-2 text-sm" />
-                                <button type="button" @click="addOpponent()"
-                                  class="bg-brand-600 hover:bg-brand-700 text-white text-sm rounded px-3 py-2">Add</button>
-                                <button type="button" @click="showNewOpponent = false; newOpponentName = ''"
-                                  class="text-sm text-slate-600 px-3 py-2">Cancel</button>
+                              <div class="mt-3 p-3 bg-slate-50 rounded-lg space-y-2">
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+                                  <input type="text" x-model="newOpponent.name" placeholder="Opponent name"
+                                    class="border border-slate-300 rounded px-2 py-1.5 text-sm" />
+                                  <input type="text" x-model="newOpponent.age_group" placeholder="Age group (e.g. B10)"
+                                    class="border border-slate-300 rounded px-2 py-1.5 text-sm" />
+                                  <input type="text" x-model="newOpponent.division" placeholder="Division (e.g. Div 5)"
+                                    class="border border-slate-300 rounded px-2 py-1.5 text-sm" />
+                                </div>
+                                <p class="text-xs text-slate-500">
+                                  Age group + division pre-filled from your team. Adjust if this opponent is in a different bracket.
+                                </p>
+                                <div class="flex gap-2">
+                                  <button type="button" @click="addOpponent()"
+                                    class="bg-brand-600 hover:bg-brand-700 text-white text-sm rounded px-3 py-1.5">Add opponent</button>
+                                  <button type="button" @click="showNewOpponent = false"
+                                    class="text-sm text-slate-600 px-3 py-1.5">Cancel</button>
+                                </div>
                               </div>
                             </template>
                           </div>

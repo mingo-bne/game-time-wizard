@@ -16,9 +16,13 @@ function gamesView(currentClub, currentStaff, onNavigate) {
     editingGameId: null,
     form: emptyGameForm(),
 
+    // Filter the opponent dropdown by team's age_group + division.
+    // Toggle off for friendlies / cross-division games.
+    filterByDivision: true,
+
     // Inline new opponent
     showNewOpponent: false,
-    newOpponentName: '',
+    newOpponent: { name: '', age_group: '', division: '' },
 
     async init() {
       try {
@@ -145,7 +149,30 @@ function gamesView(currentClub, currentStaff, onNavigate) {
       this.editingGameId = null;
       this.form = emptyGameForm();
       this.showNewOpponent = false;
-      this.newOpponentName = '';
+      this.newOpponent = { name: '', age_group: '', division: '' };
+    },
+
+    // Opponents filtered by current team's age_group + division.
+    // If filterByDivision is off, returns all club opponents.
+    filteredOpponents() {
+      if (!this.filterByDivision) return this.opponents;
+      const team = this.selectedTeam();
+      if (!team?.age_group && !team?.division) return this.opponents;
+      return this.opponents.filter(o => {
+        const ageMatch = !team.age_group || !o.age_group || o.age_group === team.age_group;
+        const divMatch = !team.division  || !o.division  || o.division  === team.division;
+        return ageMatch && divMatch;
+      });
+    },
+
+    startAddOpponent() {
+      const team = this.selectedTeam();
+      this.newOpponent = {
+        name: '',
+        age_group: team?.age_group || '',
+        division: team?.division || ''
+      };
+      this.showNewOpponent = true;
     },
 
     async saveGame() {
@@ -198,21 +225,22 @@ function gamesView(currentClub, currentStaff, onNavigate) {
     // ---- inline opponent creation ----
     async addOpponent() {
       this.error = '';
-      if (!this.newOpponentName.trim()) {
+      if (!this.newOpponent.name.trim()) {
         this.error = 'Opponent name required.';
         return;
       }
       try {
         const created = await window.GTWData.createOpponent(currentClub.id, {
-          name: this.newOpponentName.trim()
+          name: this.newOpponent.name.trim(),
+          age_group: this.newOpponent.age_group.trim() || null,
+          division: this.newOpponent.division.trim() || null
         });
         this.opponents.push(created);
         this.opponents.sort((a, b) => a.name.localeCompare(b.name));
         this.form.opposition_id = created.id;
         this.showNewOpponent = false;
-        this.newOpponentName = '';
+        this.newOpponent = { name: '', age_group: '', division: '' };
       } catch (err) {
-        // Most likely a duplicate name — surface the message
         this.error = err.message;
       }
     }
